@@ -38,7 +38,7 @@
         <!-- Spring AI PGVector -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-pgvector-store-spring-boot-starter</artifactId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
         </dependency>
 
         <!-- Kafka -->

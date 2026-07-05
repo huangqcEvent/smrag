@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QuestionRewriteService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
     private final ChatSessionMapper sessionMapper;
 
     @Value("classpath:prompts/rewrite_prompt.txt")
@@ -39,7 +39,6 @@ public class QuestionRewriteService {
                 .replace("{history}", historyText)
                 .replace("{question}", question);
 
-            ChatClient chatClient = chatClientBuilder.build();
             String rewritten = chatClient.prompt(prompt).call().content();
 
             log.info("问题改写: {} -> {}", question, rewritten);

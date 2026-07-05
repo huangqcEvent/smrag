@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SalesScriptService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
 
     @Value("classpath:prompts/sales_script_prompt.txt")
     private Resource salesScriptPromptResource;
@@ -24,7 +24,6 @@ public class SalesScriptService {
                 .replace("{productInfo}", productInfo)
                 .replace("{customerInfo}", customerInfo);
 
-            ChatClient chatClient = chatClientBuilder.build();
             String script = chatClient.prompt(prompt).call().content();
 
             log.info("销售话术生成完成，长度: {}", script.length());

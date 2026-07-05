@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AnswerService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
 
     @Value("classpath:prompts/rag_prompt.txt")
     private Resource ragPromptResource;
@@ -30,7 +30,6 @@ public class AnswerService {
                 .replace("{contexts}", contextsText)
                 .replace("{question}", question);
 
-            ChatClient chatClient = chatClientBuilder.build();
             String answer = chatClient.prompt(prompt).call().content();
 
             log.info("答案生成完成，长度: {}", answer.length());

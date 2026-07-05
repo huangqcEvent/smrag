@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RouteService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ChatClient chatClient;
 
     @Value("classpath:prompts/route_prompt.txt")
     private Resource routePromptResource;
@@ -23,7 +23,6 @@ public class RouteService {
             String promptTemplate = routePromptResource.getContentAsString();
             String prompt = promptTemplate.replace("{question}", question);
 
-            ChatClient chatClient = chatClientBuilder.build();
             String result = chatClient.prompt(prompt).call().content().trim();
 
             try {
