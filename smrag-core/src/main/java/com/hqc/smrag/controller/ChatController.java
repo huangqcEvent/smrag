@@ -55,25 +55,21 @@ public class ChatController {
                 break;
 
             case PRODUCT_QUERY:
-                // 使用产品查询工具
                 answer = productQueryTool.apply(rewritten);
                 references = List.of();
                 break;
 
             case PRODUCT_COMPARE:
-                // 使用产品对比工具
                 answer = productCompareTool.apply(rewritten);
                 references = List.of();
                 break;
 
             case PRODUCT_RECOMMEND:
-                // 使用产品推荐工具
                 answer = productRecommendTool.apply(rewritten);
                 references = List.of();
                 break;
 
             case SALES_SCRIPT:
-                // 销售话术生成
                 answer = salesScriptService.generate(rewritten, "潜在客户");
                 references = List.of();
                 break;
@@ -91,7 +87,7 @@ public class ChatController {
         session.setRewriteQuestion(rewritten);
         session.setAnswer(answer);
         session.setRouteType(routeType.name());
-        session.setReferences(references.toString());
+        session.setReferenceDocs(references.toString());
         session.setCreateTime(LocalDateTime.now());
         sessionMapper.insert(session);
 

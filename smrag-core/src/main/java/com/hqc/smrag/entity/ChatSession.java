@@ -17,6 +17,6 @@ public class ChatSession {
     private String rewriteQuestion;
     private String answer;
     private String routeType;
-    private String references;
+    private String referenceDocs;
     private LocalDateTime createTime;
 }
