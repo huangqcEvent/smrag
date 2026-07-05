@@ -239,9 +239,10 @@ const formatAmount = (amount) => {
 
 <style scoped>
 .product-page {
-  min-height: 100vh;
+  height: calc(100vh - 64px);
   background: var(--bg-primary);
   padding: 2rem;
+  overflow-y: auto;
 }
 
 .product-container {

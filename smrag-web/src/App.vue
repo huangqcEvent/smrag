@@ -164,7 +164,7 @@ const handleMenuSelect = (index) => {
   flex: 1;
   background: var(--bg-primary);
   padding: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 /* 页面切换动画 */

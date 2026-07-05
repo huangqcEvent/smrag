@@ -217,9 +217,10 @@ const formatScale = (scale) => {
 
 <style scoped>
 .manager-page {
-  min-height: 100vh;
+  height: calc(100vh - 64px);
   background: var(--bg-primary);
   padding: 2rem;
+  overflow-y: auto;
 }
 
 .manager-container {
