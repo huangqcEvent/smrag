@@ -6,6 +6,7 @@ import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.mapper.ChatSessionMapper;
 import com.hqc.smrag.service.chat.*;
+import com.hqc.smrag.service.tool.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +23,14 @@ public class ChatController {
     private final RouteService routeService;
     private final RagService ragService;
     private final AnswerService answerService;
+    private final SalesScriptService salesScriptService;
     private final ChatSessionMapper sessionMapper;
+
+    // ToolCalling工具
+    private final ProductQueryTool productQueryTool;
+    private final ManagerQueryTool managerQueryTool;
+    private final ProductCompareTool productCompareTool;
+    private final ProductRecommendTool productRecommendTool;
 
     @PostMapping("/ask")
     public ChatResponseDTO ask(@RequestBody ChatRequestDTO request) {
@@ -46,8 +54,32 @@ public class ChatController {
                 references = ragService.retrieveReferences(rewritten);
                 break;
 
+            case PRODUCT_QUERY:
+                // 使用产品查询工具
+                answer = productQueryTool.apply(rewritten);
+                references = List.of();
+                break;
+
+            case PRODUCT_COMPARE:
+                // 使用产品对比工具
+                answer = productCompareTool.apply(rewritten);
+                references = List.of();
+                break;
+
+            case PRODUCT_RECOMMEND:
+                // 使用产品推荐工具
+                answer = productRecommendTool.apply(rewritten);
+                references = List.of();
+                break;
+
+            case SALES_SCRIPT:
+                // 销售话术生成
+                answer = salesScriptService.generate(rewritten, "潜在客户");
+                references = List.of();
+                break;
+
             default:
-                answer = "该功能正在开发中，请稍后使用";
+                answer = "无法识别的问题类型，请重新描述您的问题";
                 references = List.of();
         }
 
