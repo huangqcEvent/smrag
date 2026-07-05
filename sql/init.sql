@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS chat_session (
     rewrite_question TEXT,
     answer TEXT,
     route_type VARCHAR(50),
-    references TEXT,
+    reference_docs TEXT,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

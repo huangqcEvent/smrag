@@ -1,0 +1,325 @@
+/* 私募AI专家 - Dark Mode Design System */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* 设计系统颜色 */
+  --primary: #F59E0B;
+  --primary-hover: #FBBF24;
+  --cta: #8B5CF6;
+  --cta-hover: #7C3AED;
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-card: #1E293B;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --border: #334155;
+  --border-hover: #475569;
+
+  /* 字体 */
+  --font-code: 'Fira Code', monospace;
+  --font-sans: 'Fira Sans', sans-serif;
+
+  /* 间距 */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* 圆角 */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+
+  /* 过渡 */
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  --transition-slow: 350ms;
+}
+
+/* 响应 prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glow 效果 */
+.glow-text {
+  text-shadow: 0 0 10px var(--primary);
+}
+
+.glow-border {
+  box-shadow: 0 0 15px var(--primary);
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* 通用卡片样式 */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-normal) ease;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15);
+}
+
+/* 通用按钮样式 */
+.btn {
+  cursor: pointer;
+  transition: all var(--transition-normal) ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+/* 输入框样式 */
+input, textarea, select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-normal) ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+/* 链接样式 */
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color var(--transition-fast) ease;
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+/* Element Plus 自定义主题 */
+.el-button--primary {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
+.el-button--primary:hover {
+  background-color: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+.el-button--success {
+  background-color: #10B981 !important;
+  border-color: #10B981 !important;
+}
+
+.el-button--danger {
+  background-color: #EF4444 !important;
+  border-color: #EF4444 !important;
+}
+
+.el-tag--success {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #10B981 !important;
+}
+
+.el-tag--warning {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: var(--primary) !important;
+}
+
+.el-tag--danger {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #EF4444 !important;
+}
+
+.el-tag--info {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  color: var(--cta) !important;
+}
+
+.el-menu {
+  background-color: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.el-menu-item {
+  color: var(--text-secondary) !important;
+}
+
+.el-menu-item:hover {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.el-menu-item.is-active {
+  color: var(--primary) !important;
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+.el-table {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+
+.el-table th {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.el-table tr {
+  background-color: var(--bg-card) !important;
+}
+
+.el-table tr:hover {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.el-dialog {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.el-dialog__header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.el-dialog__title {
+  color: var(--text-primary) !important;
+}
+
+.el-descriptions {
+  background-color: var(--bg-card) !important;
+}
+
+.el-descriptions__label {
+  color: var(--text-secondary) !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+.el-descriptions__content {
+  color: var(--text-primary) !important;
+}
+
+.el-input__wrapper {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+.el-input__wrapper:hover {
+  border-color: var(--border-hover) !important;
+}
+
+.el-input__wrapper:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+}
+
+.el-input__inner {
+  color: var(--text-primary) !important;
+}
+
+.el-upload {
+  cursor: pointer;
+}
+
+.el-divider {
+  border-color: var(--border) !important;
+}
+
+.el-avatar {
+  cursor: pointer;
+}
+
+.el-loading-mask {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn var(--transition-normal) ease forwards;
+}
+
+/* 响应式断点 */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  .card {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 375px) {
+  body {
+    font-size: 12px;
+  }
+
+  .card {
+    padding: var(--spacing-sm);
+  }
+}

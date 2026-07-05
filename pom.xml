@@ -18,7 +18,9 @@
     </modules>
 
     <properties>
-        <java.version>17</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.parameters>true</maven.compiler.parameters>
         <spring-boot.version>3.3.0</spring-boot.version>
         <spring-ai.version>1.0.0-M2</spring-ai.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
@@ -52,12 +54,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                    <encoding>UTF-8</encoding>
-                </configuration>
+                <version>3.11.0</version>
             </plugin>
         </plugins>
     </build>

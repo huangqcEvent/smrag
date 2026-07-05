@@ -24,7 +24,7 @@ public class DocumentService {
     private final KnowledgeDocumentMapper documentMapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    private static final String UPLOAD_DIR = "uploads/";
+    private static final String UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/";
     private static final String PARSE_TOPIC = "document-parse";
 
     public Long uploadDocument(MultipartFile file) throws IOException {
