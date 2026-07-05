@@ -21,12 +21,14 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   ai:
-    alibaba:
-      api-key: ${ALIBABA_API_KEY}
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
       chat:
+        api-key: ${DASHSCOPE_API_KEY}
         options:
           model: qwen-plus
       embedding:
+        api-key: ${DASHSCOPE_API_KEY}
         options:
           model: text-embedding-v2
 

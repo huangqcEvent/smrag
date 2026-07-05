@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,10 +22,10 @@ public class RouteService {
 
     public RouteType route(String question) {
         try {
-            String promptTemplate = routePromptResource.getContentAsString();
+            String promptTemplate = routePromptResource.getContentAsString(StandardCharsets.UTF_8);
             String prompt = promptTemplate.replace("{question}", question);
 
-            String result = chatClient.prompt(prompt).call().content().trim();
+            String result = chatClient.prompt().user(prompt).call().content().trim();
 
             try {
                 RouteType type = RouteType.valueOf(result);

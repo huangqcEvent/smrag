@@ -8,6 +8,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,12 +36,12 @@ public class QuestionRewriteService {
         }
 
         try {
-            String promptTemplate = rewritePromptResource.getContentAsString();
+            String promptTemplate = rewritePromptResource.getContentAsString(StandardCharsets.UTF_8);
             String prompt = promptTemplate
                 .replace("{history}", historyText)
                 .replace("{question}", question);
 
-            String rewritten = chatClient.prompt(prompt).call().content();
+            String rewritten = chatClient.prompt().user(prompt).call().content();
 
             log.info("问题改写: {} -> {}", question, rewritten);
             return rewritten;

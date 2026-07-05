@@ -6,6 +6,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,12 +27,12 @@ public class AnswerService {
             .collect(Collectors.joining("\n"));
 
         try {
-            String promptTemplate = ragPromptResource.getContentAsString();
+            String promptTemplate = ragPromptResource.getContentAsString(StandardCharsets.UTF_8);
             String prompt = promptTemplate
                 .replace("{contexts}", contextsText)
                 .replace("{question}", question);
 
-            String answer = chatClient.prompt(prompt).call().content();
+            String answer = chatClient.prompt().user(prompt).call().content();
 
             log.info("答案生成完成，长度: {}", answer.length());
             return answer;

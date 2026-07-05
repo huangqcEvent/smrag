@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -19,12 +21,12 @@ public class SalesScriptService {
 
     public String generate(String productInfo, String customerInfo) {
         try {
-            String promptTemplate = salesScriptPromptResource.getContentAsString();
+            String promptTemplate = salesScriptPromptResource.getContentAsString(StandardCharsets.UTF_8);
             String prompt = promptTemplate
                 .replace("{productInfo}", productInfo)
                 .replace("{customerInfo}", customerInfo);
 
-            String script = chatClient.prompt(prompt).call().content();
+            String script = chatClient.prompt().user(prompt).call().content();
 
             log.info("销售话术生成完成，长度: {}", script.length());
             return script;
