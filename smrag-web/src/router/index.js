@@ -9,13 +9,19 @@ const routes = [
     path: '/chat',
     name: 'Chat',
     component: () => import('@/views/Chat.vue'),
-    meta: { title: '智能问答' }
+    meta: {
+      title: '智能问答',
+      transition: 'page-slide'
+    }
   },
   {
     path: '/knowledge',
     name: 'Knowledge',
     component: () => import('@/views/Knowledge.vue'),
-    meta: { title: '知识库管理' }
+    meta: {
+      title: '知识库管理',
+      transition: 'page-slide-reverse'
+    }
   }
 ]
 

@@ -19,9 +19,12 @@
     </header>
 
     <main class="app-main">
-      <router-view v-slot="{ Component }">
-        <transition name="page-fade" mode="out-in">
-          <component :is="Component" />
+      <router-view v-slot="{ Component, route }">
+        <transition
+          :name="route.meta.transition || 'page-slide'"
+          mode="out-in"
+        >
+          <component :is="Component" :key="route.path" />
         </transition>
       </router-view>
     </main>
@@ -135,6 +138,34 @@ nav a:active,
   opacity: 0;
 }
 
+/* ====== 页面切换过渡 ====== */
+
+.page-slide-enter-active,
+.page-slide-leave-active {
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.page-slide-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+.page-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+/* 反向动画（知识库 → 聊天）*/
+.page-slide-reverse-enter-from {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+.page-slide-reverse-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
 @media (max-width: 520px) {
   .app-header {
     gap: 8px;
@@ -151,8 +182,19 @@ nav a:active,
 
 @media (prefers-reduced-motion: reduce) {
   .page-fade-enter-active,
-  .page-fade-leave-active {
-    transition-duration: 80ms;
+  .page-fade-leave-active,
+  .page-slide-enter-active,
+  .page-slide-leave-active {
+    transition: opacity 120ms;
+  }
+
+  .page-fade-enter-from,
+  .page-fade-leave-to,
+  .page-slide-enter-from,
+  .page-slide-leave-to,
+  .page-slide-reverse-enter-from,
+  .page-slide-reverse-leave-to {
+    transform: none;
   }
 }
 
