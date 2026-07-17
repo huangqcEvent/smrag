@@ -86,9 +86,14 @@
         </div>
 
         <div class="table-scroll">
+          <SkeletonTable
+            v-if="loading && documents.length === 0"
+            :rows="6"
+          />
           <el-table
+            v-else
             :data="documents"
-            v-loading="loading"
+            v-loading="loading && documents.length > 0"
             class="documents-table"
             empty-text="暂无文档"
           >
@@ -154,6 +159,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import SkeletonTable from '@/components/SkeletonTable.vue'
 
 const knowledgeStore = useKnowledgeStore()
 const uploadRef = ref()
