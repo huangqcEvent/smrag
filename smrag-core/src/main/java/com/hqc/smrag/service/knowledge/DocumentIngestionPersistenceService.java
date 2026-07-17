@@ -19,15 +19,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 文档解析持久化服务
+ * <p>
+ * 负责文档解析过程中的数据库状态更新操作，包括：
+ * <ul>
+ *     <li>标记处理中状态：乐观锁更新文档状态为 PROCESSING</li>
+ *     <li>保存解析结果：保存分块记录并更新文档状态为 COMPLETED</li>
+ *     <li>标记失败状态：在独立事务中更新文档状态为 FAILED</li>
+ * </ul>
+ * <p>
+ * 并发控制：
+ * <ul>
+ *     <li>使用版本号和 processingToken 实现乐观锁</li>
+ *     <li>失败状态更新使用 REQUIRES_NEW 传播，确保状态能够保存</li>
+ * </ul>
+ *
+ * @see KnowledgeDocument 知识库文档实体
+ * @see KnowledgeChunk 知识库分块实体
+ */
 @Service
 @RequiredArgsConstructor
 public class DocumentIngestionPersistenceService {
 
+    /**
+     * 批量插入大小
+     */
     private static final int BATCH_SIZE = 500;
 
     private final KnowledgeDocumentMapper documentMapper;
     private final KnowledgeChunkMapper chunkMapper;
 
+    /**
+     * 标记文档为处理中状态
+     * <p>
+     * 使用乐观锁更新文档状态，条件包括：
+     * <ul>
+     *     <li>文档ID匹配</li>
+     *     <li>版本号匹配</li>
+     *     <li>处理令牌匹配</li>
+     *     <li>当前状态为 PENDING 或 FAILED</li>
+     * </ul>
+     *
+     * @param documentId      文档ID
+     * @param version         版本号
+     * @param processingToken 处理令牌
+     * @return 是否成功标记（true=成功，false=已被其他进程处理）
+     */
     @Transactional
     public boolean markProcessing(long documentId, int version, UUID processingToken) {
         int updated = documentMapper.update(
@@ -49,6 +87,22 @@ public class DocumentIngestionPersistenceService {
         return updated == 1;
     }
 
+    /**
+     * 保存解析完成结果
+     * <p>
+     * 在同一事务中完成：
+     * <ol>
+     *     <li>删除旧的分块记录（如果存在）</li>
+     *     <li>插入新的分块记录</li>
+     *     <li>更新文档状态为 COMPLETED</li>
+     * </ol>
+     *
+     * @param documentId      文档ID
+     * @param version         版本号
+     * @param processingToken 处理令牌
+     * @param chunks          分块列表
+     * @throws OptimisticLockingFailureException 文档版本已更新时抛出
+     */
     @Transactional
     public void saveCompleted(
         long documentId,
@@ -82,6 +136,16 @@ public class DocumentIngestionPersistenceService {
         requireMatchingVersion(updated, documentId, version);
     }
 
+    /**
+     * 在新事务中标记失败状态
+     * <p>
+     * 使用 REQUIRES_NEW 传播，确保即使外层事务回滚，失败状态也能保存。
+     *
+     * @param documentId      文档ID
+     * @param version         版本号
+     * @param processingToken 处理令牌
+     * @param failureReason   失败原因
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailedInNewTransaction(
         long documentId,
@@ -103,6 +167,9 @@ public class DocumentIngestionPersistenceService {
         );
     }
 
+    /**
+     * 将 Spring AI Document 转换为 KnowledgeChunk 实体列表
+     */
     private List<KnowledgeChunk> toEntities(
         long documentId,
         int version,
@@ -126,10 +193,16 @@ public class DocumentIngestionPersistenceService {
         return entities;
     }
 
+    /**
+     * 从元数据中提取数字值
+     */
     private Integer number(Object value, Integer defaultValue) {
         return value instanceof Number number ? number.intValue() : defaultValue;
     }
 
+    /**
+     * 校验乐观锁版本是否匹配
+     */
     private void requireMatchingVersion(int updated, long documentId, int version) {
         if (updated != 1) {
             throw new OptimisticLockingFailureException(
