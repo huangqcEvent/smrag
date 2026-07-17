@@ -147,6 +147,19 @@
         </el-tooltip>
       </div>
     </footer>
+
+    <!-- 滚动到底部按钮 -->
+    <transition name="scroll-button">
+      <button
+        v-if="showScrollButton"
+        class="scroll-to-bottom"
+        type="button"
+        aria-label="滚动到最新消息"
+        @click="scrollToBottom(true)"
+      >
+        <el-icon><ArrowDown /></el-icon>
+      </button>
+    </transition>
   </section>
 </template>
 
@@ -738,6 +751,48 @@ const liveStatus = computed(() => {
   --el-button-active-border-color: color-mix(in srgb, var(--danger) 76%, black);
 }
 
+/* ====== 滚动到底部按钮 ====== */
+
+.scroll-to-bottom {
+  position: fixed;
+  right: 24px;
+  bottom: 90px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 1.25rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-low);
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  z-index: 10;
+}
+
+.scroll-to-bottom:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(28, 48, 43, 0.12);
+}
+
+.scroll-to-bottom:active {
+  transform: scale(0.95);
+}
+
+/* 按钮进入/离开动画 */
+.scroll-button-enter-active,
+.scroll-button-leave-active {
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.scroll-button-enter-from,
+.scroll-button-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 @media (max-width: 640px) {
   .workspace-header {
     min-height: 64px;
@@ -754,6 +809,11 @@ const liveStatus = computed(() => {
   .composer-dock {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
+
+  .scroll-to-bottom {
+    right: 16px;
+    bottom: 100px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -768,6 +828,20 @@ const liveStatus = computed(() => {
 
   .citations-content {
     transition: none;
+  }
+
+  .scroll-to-bottom {
+    transition: none;
+  }
+
+  .scroll-button-enter-active,
+  .scroll-button-leave-active {
+    transition: opacity 100ms;
+  }
+
+  .scroll-button-enter-from,
+  .scroll-button-leave-to {
+    transform: none;
   }
 }
 
