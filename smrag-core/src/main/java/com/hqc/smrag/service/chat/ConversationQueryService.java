@@ -48,6 +48,7 @@ public class ConversationQueryService {
     public String rewrite(String question, String sessionId) {
         String normalizedQuestion = requireQuestion(question);
         List<Message> history = memoryService.history(sessionId);
+        log.info("问题改写前: {},{}", normalizedQuestion, history);
         if (history.isEmpty()) {
             return normalizedQuestion;
         }
@@ -62,6 +63,7 @@ public class ConversationQueryService {
             if (rewritten == null || rewritten.text() == null || rewritten.text().isBlank()) {
                 return normalizedQuestion;
             }
+            log.info("问题改写后: {}", rewritten.text().trim());
             return rewritten.text().trim();
         } catch (RuntimeException failure) {
             log.warn("Unable to rewrite conversation query; using the original question", failure);

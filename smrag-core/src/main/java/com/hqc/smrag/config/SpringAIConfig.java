@@ -5,6 +5,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
 import org.springframework.context.annotation.Bean;
@@ -76,9 +77,14 @@ public class SpringAIConfig {
      * 配置查询重写转换器
      * <p>
      * 在进行知识库检索前，将用户的原始问题重写为更适合检索的形式。
-     * 例如将口语化的表达转换为更正式的关键词查询。
+     * 例如将口语化的表达转换为更正式的关键词查询，并保留完整的对话上下文。
      * <p>
-     * 目标搜索系统设置为 "enterprise knowledge base"，帮助模型理解重写目标。
+     * 重写规则：
+     * <ul>
+     *     <li>保留对比意图和对比对象（如"A和B对比"而非仅"B对比"）</li>
+     *     <li>补充历史对话中的实体名称（如"它"→具体产品名）</li>
+     *     <li>生成结构化检索查询，包含产品名、属性、对比关系等关键信息</li>
+     * </ul>
      *
      * @param builder ChatClient 构建器
      * @return 查询重写转换器
@@ -87,7 +93,32 @@ public class SpringAIConfig {
     public QueryTransformer rewriteQueryTransformer(ChatClient.Builder builder) {
         return RewriteQueryTransformer.builder()
             .chatClientBuilder(builder.clone())
-            .targetSearchSystem("enterprise knowledge base")
+            .promptTemplate(new PromptTemplate("""
+                你是一个专业的查询改写助手,帮助用户将对话式问题转换为适合 {target} 的精确查询。
+
+                ## 改写规则
+
+                1. **保留对比完整性**:
+                   - 如果用户问题涉及对比(如"A和B对比"、"对比B呢"),必须保留所有对比对象
+                   - 示例: "对比稳健货币宝呢" + 历史(讨论均衡成长混合) → "均衡成长混合与稳健货币宝对比分析"
+
+                2. **补充指代对象**:
+                   - 将代词(它、这个、那个)替换为历史对话中的具体实体名称
+                   - 示例: "它的收益率" + 历史(讨论产品A) → "产品A收益率"
+
+                3. **提取关键信息**:
+                   - 产品名称、属性(风险等级、收益率、费率)、对比维度
+                   - 示例: "两个产品哪个风险低" → "产品A与产品B风险等级对比"
+
+                4. **保持查询简洁**:
+                   - 去除语气词(呢、吧、啊)
+                   - 使用关键词组合而非完整句子
+                   - 示例: "这款产品的历史业绩怎么样啊" → "产品名称 历史业绩"
+
+                用户问题: {query}
+
+                请直接输出改写后的查询,不要添加解释或说明。
+                """))
             .build();
     }
 }
