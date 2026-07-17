@@ -1,6 +1,7 @@
 package com.hqc.smrag.service.chat;
 
 import org.springframework.ai.document.Document;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -28,6 +29,13 @@ public interface KnowledgeChatClient {
      * @return 知识库答案，包含答案内容和引用的文档列表
      */
     KnowledgeAnswer answer(
+        String question,
+        String sessionId,
+        String knowledgeBaseId,
+        Long documentId
+    );
+
+    Flux<KnowledgeAnswer> stream(
         String question,
         String sessionId,
         String knowledgeBaseId,

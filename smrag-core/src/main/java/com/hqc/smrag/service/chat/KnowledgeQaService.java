@@ -4,6 +4,9 @@ import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.exception.AiServiceException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 /**
  * \u77e5\u8bc6\u5e93\u95ee\u7b54\u670d\u52a1
@@ -77,6 +80,42 @@ public class KnowledgeQaService {
                 ragProperties.getMaxContextDocuments()
             )
         );
+    }
+
+    public Flux<KnowledgeQaResult> stream(
+        String question,
+        String sessionId,
+        String knowledgeBaseId,
+        Long documentId
+    ) {
+        String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
+        return Flux.defer(() -> chatClient.stream(
+                question,
+                sessionId,
+                normalizedKnowledgeBaseId,
+                documentId
+            ))
+            .switchOnFirst((signal, answers) -> {
+                if (!signal.hasValue()) {
+                    return answers.map(answer -> new KnowledgeQaResult(
+                        answer.content(),
+                        List.of()
+                    ));
+                }
+                KnowledgeChatClient.KnowledgeAnswer first = signal.get();
+                if (first.documents().isEmpty()) {
+                    return Flux.just(new KnowledgeQaResult(NO_EVIDENCE_RESPONSE, List.of()));
+                }
+                List<com.hqc.smrag.dto.CitationDTO> citations = citationAssembler.assemble(
+                    first.documents(),
+                    ragProperties.getMaxContextDocuments()
+                );
+                return answers.map(answer -> new KnowledgeQaResult(answer.content(), citations));
+            })
+            .onErrorMap(
+                failure -> !(failure instanceof AiServiceException),
+                failure -> new AiServiceException("Knowledge AI request failed", failure)
+            );
     }
 
     /**

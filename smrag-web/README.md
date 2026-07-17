@@ -1,121 +1,59 @@
-# 私募AI专家前端项目
+# SMRAG Web
 
-基于 Vue 3 + Element Plus + Pinia + Vue Router 构建的私募AI专家前端应用。
+SMRAG 的 Vue 3 前端，提供企业知识库管理和可取消的流式 RAG 问答。
 
 ## 技术栈
 
-- **Vue 3** - 渐进式JavaScript框架
-- **Vite** - 下一代前端构建工具
-- **Element Plus** - Vue 3组件库
-- **Pinia** - Vue状态管理库
-- **Vue Router** - Vue.js官方路由
-- **Axios** - HTTP客户端
+- Vue 3、Vite、Pinia、Vue Router
+- Element Plus
+- Fetch `ReadableStream`、Axios
+- Marked、DOMPurify
 
-## 项目结构
+## 主要功能
 
-```
-smrag-web/
-├── src/
-│   ├── api/              # API接口定义
-│   │   ├── chat.js       # 聊天相关接口
-│   │   ├── knowledge.js  # 知识库管理接口
-│   │   ├── product.js    # 产品管理接口
-│   │   └── manager.js    # 管理人管理接口
-│   ├── stores/           # Pinia状态管理
-│   │   ├── chat.js
-│   │   ├── knowledge.js
-│   │   ├── product.js
-│   │   └── manager.js
-│   ├── views/            # 页面组件
-│   │   ├── Chat.vue      # 智能问答页面
-│   │   ├── Knowledge.vue # 知识库管理页面
-│   │   ├── Product.vue   # 产品管理页面
-│   │   └── Manager.vue   # 管理人管理页面
-│   ├── utils/            # 工具函数
-│   │   └── request.js    # Axios封装
-│   ├── router/           # 路由配置
-│   │   └── index.js
-│   ├── App.vue           # 根组件
-│   └── main.js           # 入口文件
-└── vite.config.js        # Vite配置
-```
+- 上传、查看和删除知识库文档
+- RAG 知识问答、产品查询/对比/推荐和合规销售话术
+- SSE 增量回答、引用依据和会话历史
+- 生成中止、错误恢复和移动端适配
 
-## 后端接口使用清单
+## 聊天接口
 
-### 1. 聊天接口 (ChatController)
+| 接口 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/chat/stream` | POST | 默认聊天入口，返回 `text/event-stream` |
+| `/api/chat/ask` | POST | 兼容的非流式 JSON 问答 |
+| `/api/chat/history/{sessionId}` | GET | 查询已成功持久化的会话历史 |
 
-| 接口 | 方法 | 路径 | 使用位置 |
-|------|------|------|----------|
-| 智能问答 | POST | /api/chat/ask | chat.js → chatAsk() |
-| 聊天历史 | GET | /api/chat/history/{sessionId} | chat.js → getChatHistory() |
+`/api/chat/stream` 接收与 `/api/chat/ask` 相同的 JSON 请求。事件顺序为：
 
-### 2. 知识库接口 (KnowledgeController)
+1. `status`：分析或路由阶段。
+2. `metadata`：会话 ID 和路由类型。
+3. `delta`：零个或多个回答片段。
+4. `citations`：RAG 引用依据，其他路由省略。
+5. `done`：完整回答已持久化。
 
-| 接口 | 方法 | 路径 | 使用位置 |
-|------|------|------|----------|
-| 上传文档 | POST | /api/knowledge/upload | knowledge.js → uploadDocument() |
-| 文档列表 | GET | /api/knowledge/list | knowledge.js → getDocumentList() |
-| 删除文档 | DELETE | /api/knowledge/{id} | knowledge.js → deleteDocument() |
+失败时返回脱敏的 `error` 事件且不会发送 `done`。前端通过 `AbortController` 停止生成；未完成的回答不会写入应用会话历史。
 
-### 3. 产品接口 (ProductController)
+## 知识库接口
 
-| 接口 | 方法 | 路径 | 使用位置 |
-|------|------|------|----------|
-| 产品详情 | GET | /api/product/{id} | product.js → getProduct() |
-| 搜索产品 | GET | /api/product/search | product.js → searchProducts() |
-| 产品列表 | GET | /api/product/list | product.js → getProductList() |
+| 接口 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/knowledge/upload` | POST | 上传文档 |
+| `/api/knowledge/list` | GET | 查询文档列表 |
+| `/api/knowledge/{id}` | DELETE | 删除文档 |
 
-### 4. 管理人接口 (ManagerController)
-
-| 接口 | 方法 | 路径 | 使用位置 |
-|------|------|------|----------|
-| 管理人详情 | GET | /api/manager/{id} | manager.js → getManager() |
-| 搜索管理人 | GET | /api/manager/search | manager.js → searchManagers() |
-| 管理人列表 | GET | /api/manager/list | manager.js → getManagerList() |
-
-## 功能特性
-
-### 智能问答 (Chat.vue)
-- 支持问题改写、路由分类
-- 支持知识问答、产品查询、产品对比、产品推荐、销售话术等多种问答类型
-- 显示引用参考资料
-- 会话历史记录
-
-### 知识库管理 (Knowledge.vue)
-- 文档上传（支持PDF、DOC、DOCX、TXT）
-- 文档列表展示
-- 文档删除
-
-### 产品管理 (Product.vue)
-- 产品列表展示
-- 产品名称搜索
-- 产品详情查看
-- 风险等级展示
-
-### 管理人管理 (Manager.vue)
-- 管理人列表展示
-- 管理人名称搜索
-- 管理人详情查看
-- 资质展示
-
-## 安装与运行
+## 本地运行
 
 ```bash
-# 安装依赖
 npm install
-
-# 开发模式运行
 npm run dev
-
-# 生产环境构建
-npm run build
 ```
 
-## 开发环境配置
+开发服务器默认监听 `http://localhost:3000`，并将 `/api` 代理到 `http://localhost:8080`。
 
-项目默认配置代理到 `http://localhost:8080`，可在 `vite.config.js` 中修改后端地址。
+## 验证
 
-## 注意事项
-
-- 确保后端服务已启动并运行在8080端口
-- 所有接口均已对接完成，确保每个接口都正确使用
+```bash
+npm run test
+npm run build
+```

@@ -1,4 +1,6 @@
+import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { postChatStream } from './chatStream'
 
 // 聊天接口
 export function chatAsk(data) {
@@ -7,6 +9,18 @@ export function chatAsk(data) {
     method: 'post',
     data
   })
+}
+
+// 流式聊天接口
+export async function chatStream(data, options = {}) {
+  try {
+    return await postChatStream(data, options)
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      ElMessage.error(error?.message || '请求失败')
+    }
+    throw error
+  }
 }
 
 // 获取聊天历史

@@ -2,9 +2,13 @@ package com.hqc.smrag.service.chat;
 
 import com.hqc.smrag.exception.AiServiceException;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 /**
  * 销售话术生成服务
@@ -45,8 +49,13 @@ public class SalesScriptService {
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
 
+    @Autowired
     public SalesScriptService(ChatClient.Builder chatClientBuilder, ChatMemory chatMemory) {
-        this.chatClient = chatClientBuilder.clone().build();
+        this(chatClientBuilder.clone().build(), chatMemory);
+    }
+
+    SalesScriptService(ChatClient chatClient, ChatMemory chatMemory) {
+        this.chatClient = chatClient;
         this.chatMemory = chatMemory;
     }
 
@@ -69,15 +78,35 @@ public class SalesScriptService {
         try {
             return chatClient.prompt()
                 .system(SYSTEM_PROMPT)
+                .messages(history(sessionId))
                 .user(userPrompt)
-                .advisors(MessageChatMemoryAdvisor.builder(chatMemory)
-                    .conversationId(sessionId)
-                    .build())
                 .call()
                 .content();
         } catch (RuntimeException failure) {
             throw new AiServiceException("Sales script AI request failed", failure);
         }
+    }
+
+    public Flux<String> stream(String question, String customerProfile, String sessionId) {
+        String profile = customerProfile == null || customerProfile.isBlank()
+            ? "No customer profile was provided."
+            : customerProfile.trim();
+        String userPrompt = "Request:\n" + question.trim() + "\n\nCustomer profile:\n" + profile;
+        return Flux.defer(() -> chatClient.prompt()
+                .system(SYSTEM_PROMPT)
+                .messages(history(sessionId))
+                .user(userPrompt)
+                .stream()
+                .content())
+            .onErrorMap(
+                failure -> !(failure instanceof AiServiceException),
+                failure -> new AiServiceException("Sales script AI request failed", failure)
+            );
+    }
+
+    private List<Message> history(String sessionId) {
+        List<Message> messages = chatMemory.get(sessionId);
+        return messages == null ? List.of() : List.copyOf(messages);
     }
 
     /**

@@ -4,14 +4,16 @@ import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.exception.AiServiceException;
 import com.hqc.smrag.service.tool.FundTools;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -95,16 +97,35 @@ public class BusinessToolChatService {
         try {
             return chatClient.prompt()
                 .system(SYSTEM_PROMPT)
+                .messages(history(sessionId))
                 .user(question)
-                .advisors(MessageChatMemoryAdvisor.builder(chatMemory)
-                    .conversationId(sessionId)
-                    .build())
                 .toolCallbacks(selectedTool)
                 .call()
                 .content();
         } catch (RuntimeException failure) {
             throw new AiServiceException("Business AI request failed", failure);
         }
+    }
+
+    public Flux<String> stream(RouteType routeType, String question, String sessionId) {
+        return Flux.defer(() -> {
+            ToolCallback selectedTool = selectedTool(routeType);
+            return chatClient.prompt()
+                .system(SYSTEM_PROMPT)
+                .messages(history(sessionId))
+                .user(question)
+                .toolCallbacks(selectedTool)
+                .stream()
+                .content();
+        }).onErrorMap(
+            failure -> !(failure instanceof AiServiceException),
+            failure -> new AiServiceException("Business AI request failed", failure)
+        );
+    }
+
+    private List<Message> history(String sessionId) {
+        List<Message> messages = chatMemory.get(sessionId);
+        return messages == null ? List.of() : List.copyOf(messages);
     }
 
     /**

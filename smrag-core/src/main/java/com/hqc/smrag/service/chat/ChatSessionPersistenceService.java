@@ -3,6 +3,9 @@ package com.hqc.smrag.service.chat;
 import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.mapper.ChatSessionMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +36,7 @@ import java.util.List;
 public class ChatSessionPersistenceService {
 
     private final ChatSessionMapper sessionMapper;
+    private final ChatMemory chatMemory;
 
     /**
      * 保存对话记录
@@ -44,6 +48,10 @@ public class ChatSessionPersistenceService {
     @Transactional
     public void save(ChatSession session) {
         sessionMapper.insert(session);
+        chatMemory.add(session.getSessionId(), List.of(
+            new UserMessage(session.getQuestion()),
+            new AssistantMessage(session.getAnswer())
+        ));
     }
 
     /**

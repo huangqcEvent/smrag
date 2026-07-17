@@ -5,6 +5,10 @@ spring:
   application:
     name: smrag
 
+  mvc:
+    async:
+      request-timeout: 105s
+
   datasource:
     url: jdbc:postgresql://localhost:5432/smrag
     username: postgres
@@ -68,6 +72,9 @@ logging:
 
 smrag:
   ai:
+    chat:
+      stream:
+        timeout: 90s
     rag:
       top-k: 8
       similarity-threshold: 0.40

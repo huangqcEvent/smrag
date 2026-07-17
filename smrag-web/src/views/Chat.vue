@@ -18,7 +18,9 @@
       </el-tooltip>
     </header>
 
-    <div ref="messagesContainer" class="messages-container" aria-live="polite">
+    <p class="sr-only" role="status" aria-live="polite">{{ liveStatus }}</p>
+
+    <div ref="messagesContainer" class="messages-container">
       <div v-if="chatHistory.length === 0" class="empty-state">
         <div class="empty-symbol" aria-hidden="true">
           <el-icon><ChatDotRound /></el-icon>
@@ -58,7 +60,24 @@
             </span>
             <span class="route-label">{{ getRouteLabel(item.routeType) }}</span>
           </div>
-          <div class="answer-text">{{ item.answer }}</div>
+          <div class="assistant-content">
+            <div v-if="item.answer" class="streamed-answer">
+              <p v-if="isGenerating(item)" class="stream-plain-text">
+                {{ item.answer }}<span class="stream-cursor" aria-hidden="true"></span>
+              </p>
+              <MarkdownContent v-else :content="item.answer" />
+            </div>
+            <div v-if="isGenerating(item) && !item.answer" class="thinking-state" aria-hidden="true">
+              <span class="thinking-dot"></span>
+              <span class="thinking-dot"></span>
+              <span class="thinking-dot"></span>
+              <span>{{ getPhaseLabel(item.phase) }}</span>
+            </div>
+            <p v-else-if="item.state === 'error'" class="stream-message stream-error">
+              {{ item.error || '生成回答失败' }}
+            </p>
+            <p v-else-if="item.state === 'stopped'" class="stream-message">已停止生成</p>
+          </div>
 
           <details v-if="item.citations?.length" class="citations">
             <summary>
@@ -86,12 +105,6 @@
         </div>
       </article>
 
-      <div v-if="loading" class="thinking-state" role="status">
-        <span class="thinking-dot"></span>
-        <span class="thinking-dot"></span>
-        <span class="thinking-dot"></span>
-        <span>正在检索并组织答案</span>
-      </div>
     </div>
 
     <footer class="composer-dock">
@@ -118,17 +131,16 @@
           aria-label="问题"
           @keydown.enter.exact.prevent="handleSend"
         />
-        <el-tooltip content="发送" placement="top">
+        <el-tooltip :content="loading ? '停止生成' : '发送'" placement="top">
           <el-button
-            class="send-button"
+            :class="['send-button', { 'stop-button': loading }]"
             type="primary"
             circle
-            :loading="loading"
-            :disabled="!question.trim()"
-            aria-label="发送问题"
-            @click="handleSend"
+            :disabled="!loading && !question.trim()"
+            :aria-label="loading ? '停止生成' : '发送问题'"
+            @click="handleComposerAction"
           >
-            <el-icon v-if="!loading"><Promotion /></el-icon>
+            <el-icon><VideoPause v-if="loading" /><Promotion v-else /></el-icon>
           </el-button>
         </el-tooltip>
       </div>
@@ -137,7 +149,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   ArrowRight,
@@ -146,9 +158,11 @@ import {
   Delete,
   Document,
   MagicStick,
-  Promotion
+  Promotion,
+  VideoPause
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import MarkdownContent from '@/components/MarkdownContent.vue'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
@@ -156,6 +170,8 @@ const question = ref('')
 const knowledgeBaseId = ref('default')
 const messagesContainer = ref(null)
 const { chatHistory, loading } = storeToRefs(chatStore)
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+let scrollFrame = 0
 
 const starters = [
   '知识库中的风险揭示要求是什么？',
@@ -166,6 +182,20 @@ const starters = [
 
 onMounted(() => chatStore.initSession())
 
+onBeforeUnmount(() => {
+  if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  chatStore.stopGeneration()
+})
+
+watch(
+  () => {
+    const last = chatHistory.value.at(-1)
+    return [chatHistory.value.length, last?.answer?.length, last?.state, last?.citations?.length]
+  },
+  () => scheduleScrollToBottom(),
+  { flush: 'post' }
+)
+
 const handleSend = async () => {
   const value = question.value.trim()
   if (!value || loading.value) return
@@ -175,10 +205,17 @@ const handleSend = async () => {
     await chatStore.askQuestion(value, {
       knowledgeBaseId: knowledgeBaseId.value.trim() || 'default'
     })
-    await scrollToBottom()
   } catch {
     question.value = value
   }
+}
+
+const handleComposerAction = () => {
+  if (loading.value) {
+    chatStore.stopGeneration()
+    return
+  }
+  handleSend()
 }
 
 const quickAsk = (value) => {
@@ -191,14 +228,18 @@ const clearSession = () => {
   ElMessage.success('已开始新会话')
 }
 
-const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTo({
-      top: messagesContainer.value.scrollHeight,
-      behavior: 'smooth'
+const scheduleScrollToBottom = () => {
+  if (scrollFrame) return
+  scrollFrame = requestAnimationFrame(async () => {
+    scrollFrame = 0
+    await nextTick()
+    const container = messagesContainer.value
+    if (!container) return
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: prefersReducedMotion.matches || loading.value ? 'auto' : 'smooth'
     })
-  }
+  })
 }
 
 const formatTime = (time) => {
@@ -208,6 +249,15 @@ const formatTime = (time) => {
 
 const formatScore = (score) => `${Math.round(Number(score) * 100)}%`
 
+const isGenerating = (item) => item.state === 'pending' || item.state === 'streaming'
+
+const getPhaseLabel = (phase) => ({
+  ANALYZING: '正在分析问题',
+  RETRIEVING: '正在检索知识库',
+  CALLING_TOOL: '正在查询业务数据',
+  GENERATING: '正在生成回答'
+}[phase] || '正在生成回答')
+
 const getRouteLabel = (routeType) => ({
   KNOWLEDGE_QA: '知识问答',
   PRODUCT_QUERY: '产品查询',
@@ -216,6 +266,16 @@ const getRouteLabel = (routeType) => ({
   MANAGER_QUERY: '基金经理',
   SALES_SCRIPT: '销售话术'
 }[routeType] || '智能回答')
+
+const liveStatus = computed(() => {
+  const last = chatHistory.value.at(-1)
+  if (!last) return ''
+  if (isGenerating(last)) return getPhaseLabel(last.phase)
+  if (last.state === 'done') return '回答生成完成'
+  if (last.state === 'error') return '回答生成失败'
+  if (last.state === 'stopped') return '已停止生成'
+  return ''
+})
 </script>
 
 <style scoped>
@@ -356,6 +416,7 @@ const getRouteLabel = (routeType) => ({
   color: var(--text-primary);
   line-height: 1.55;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .assistant-message {
@@ -388,12 +449,37 @@ const getRouteLabel = (routeType) => ({
   font-weight: 600;
 }
 
-.answer-text {
+.assistant-content {
+  min-height: 28px;
+}
+
+.streamed-answer {
+  position: relative;
+  min-width: 0;
+}
+
+.stream-plain-text {
   max-width: 72ch;
+  margin: 0;
   color: var(--text-primary);
   font-size: 0.98rem;
   line-height: 1.75;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  background: var(--accent);
+  animation: cursor-blink 900ms steps(1, end) infinite;
+}
+
+@keyframes cursor-blink {
+  50% { opacity: 0; }
 }
 
 .citations {
@@ -456,7 +542,9 @@ const getRouteLabel = (routeType) => ({
 }
 
 .citation-heading strong {
+  min-width: 0;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .citation-heading span {
@@ -484,9 +572,32 @@ const getRouteLabel = (routeType) => ({
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 28px;
+  min-height: 24px;
+  margin-top: 8px;
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+.stream-message {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.stream-error {
+  color: var(--el-color-danger);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .thinking-dot {
@@ -566,6 +677,15 @@ const getRouteLabel = (routeType) => ({
   flex-shrink: 0;
 }
 
+.stop-button {
+  --el-button-bg-color: var(--danger);
+  --el-button-border-color: var(--danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--danger) 84%, black);
+  --el-button-hover-border-color: color-mix(in srgb, var(--danger) 84%, black);
+  --el-button-active-bg-color: color-mix(in srgb, var(--danger) 76%, black);
+  --el-button-active-border-color: color-mix(in srgb, var(--danger) 76%, black);
+}
+
 @media (max-width: 640px) {
   .workspace-header {
     min-height: 64px;
@@ -585,7 +705,8 @@ const getRouteLabel = (routeType) => ({
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thinking-dot {
+  .thinking-dot,
+  .stream-cursor {
     animation: none;
   }
 

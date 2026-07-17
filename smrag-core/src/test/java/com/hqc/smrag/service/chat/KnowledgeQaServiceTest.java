@@ -4,6 +4,8 @@ import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.exception.AiServiceException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,62 @@ class KnowledgeQaServiceTest {
             .isInstanceOf(AiServiceException.class)
             .hasMessage("Knowledge AI request failed")
             .hasCauseInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void streamsModelChunksWithCitationsFromTheRetrievedContext() {
+        Document evidence = Document.builder()
+            .id("vector-42")
+            .text("Policy evidence")
+            .metadata(Map.of("documentName", "policy.pdf"))
+            .build();
+        when(chatClient.stream("Question", "session-1", "finance", 42L))
+            .thenReturn(Flux.just(
+                new KnowledgeChatClient.KnowledgeAnswer("Grounded ", List.of(evidence)),
+                new KnowledgeChatClient.KnowledgeAnswer("answer", List.of())
+            ));
+
+        StepVerifier.create(service.stream("Question", "session-1", "finance", 42L))
+            .assertNext(result -> {
+                assertThat(result.answer()).isEqualTo("Grounded ");
+                assertThat(result.citations()).extracting("vectorId")
+                    .containsExactly("vector-42");
+            })
+            .assertNext(result -> {
+                assertThat(result.answer()).isEqualTo("answer");
+                assertThat(result.citations()).extracting("vectorId")
+                    .containsExactly("vector-42");
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    void replacesStreamingModelOutputWhenRetrievedContextIsEmpty() {
+        when(chatClient.stream("Question", "session-1", "default", null))
+            .thenReturn(Flux.just(
+                new KnowledgeChatClient.KnowledgeAnswer("unsupported output", List.of()),
+                new KnowledgeChatClient.KnowledgeAnswer("more output", List.of())
+            ));
+
+        StepVerifier.create(service.stream("Question", "session-1", "  ", null))
+            .assertNext(result -> {
+                assertThat(result.answer()).isEqualTo(KnowledgeQaService.NO_EVIDENCE_RESPONSE);
+                assertThat(result.citations()).isEmpty();
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    void convertsStreamingClientFailuresToStableAiServiceException() {
+        when(chatClient.stream("Question", "session-1", "default", null))
+            .thenReturn(Flux.error(new IllegalStateException("provider unavailable")));
+
+        StepVerifier.create(service.stream("Question", "session-1", null, null))
+            .expectErrorSatisfies(failure -> assertThat(failure)
+                .isInstanceOf(AiServiceException.class)
+                .hasMessage("Knowledge AI request failed")
+                .hasCauseInstanceOf(IllegalStateException.class))
+            .verify();
     }
 
     private RagProperties properties() {

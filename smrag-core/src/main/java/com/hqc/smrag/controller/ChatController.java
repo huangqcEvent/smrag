@@ -3,16 +3,20 @@ package com.hqc.smrag.controller;
 import com.hqc.smrag.common.Result;
 import com.hqc.smrag.dto.ChatRequestDTO;
 import com.hqc.smrag.dto.ChatResponseDTO;
+import com.hqc.smrag.dto.ChatStreamEvent;
 import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.service.chat.AiChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -53,6 +57,16 @@ public class ChatController {
     @PostMapping("/ask")
     public Result<ChatResponseDTO> ask(@Valid @RequestBody ChatRequestDTO request) {
         return Result.success(aiChatService.ask(request));
+    }
+
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<ChatStreamEvent>> stream(
+        @Valid @RequestBody ChatRequestDTO request
+    ) {
+        return aiChatService.stream(request)
+            .map(event -> ServerSentEvent.<ChatStreamEvent>builder(event)
+                .event(event.type())
+                .build());
     }
 
     /**

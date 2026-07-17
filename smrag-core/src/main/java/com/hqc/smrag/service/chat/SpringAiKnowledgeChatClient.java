@@ -3,8 +3,8 @@ package com.hqc.smrag.service.chat;
 import com.hqc.smrag.config.RagProperties;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
@@ -14,6 +14,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -95,32 +96,13 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         String knowledgeBaseId,
         Long documentId
     ) {
-        Filter.Expression filterExpression = buildFilter(knowledgeBaseId, documentId);
-        VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(ragProperties.getSimilarityThreshold())
-            .topK(ragProperties.getTopK())
-            .filterExpression(filterExpression)
-            .build();
-        RetrievalAugmentationAdvisor ragAdvisor = RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(retriever)
-            .queryAugmenter(ContextualQueryAugmenter.builder()
-                .allowEmptyContext(false)
-                .emptyContextPromptTemplate(new PromptTemplate(
-                    "There is not enough evidence in the current knowledge base to answer."
-                ))
-                .build())
-            .build();
+        RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId);
 
         ChatClientResponse response = chatClient.prompt()
             .system(SYSTEM_PROMPT)
+            .messages(history(sessionId))
             .user(question)
-            .advisors(
-                MessageChatMemoryAdvisor.builder(chatMemory)
-                    .conversationId(sessionId)
-                    .build(),
-                ragAdvisor
-            )
+            .advisors(ragAdvisor)
             .call()
             .chatClientResponse();
 
@@ -131,6 +113,64 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
             response.chatResponse().getResult().getOutput().getText(),
             extractDocuments(response.context().get(RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT))
         );
+    }
+
+    @Override
+    public Flux<KnowledgeAnswer> stream(
+        String question,
+        String sessionId,
+        String knowledgeBaseId,
+        Long documentId
+    ) {
+        return Flux.defer(() -> {
+            RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId);
+            return chatClient.prompt()
+                .system(SYSTEM_PROMPT)
+                .messages(history(sessionId))
+                .user(question)
+                .advisors(ragAdvisor)
+                .stream()
+                .chatClientResponse()
+                .map(response -> {
+                    if (response == null || response.chatResponse() == null) {
+                        throw new IllegalStateException(
+                            "Spring AI returned an empty knowledge response"
+                        );
+                    }
+                    return new KnowledgeAnswer(
+                        response.chatResponse().getResult().getOutput().getText(),
+                        extractDocuments(
+                            response.context().get(RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT)
+                        )
+                    );
+                });
+        });
+    }
+
+    private RetrievalAugmentationAdvisor buildRagAdvisor(
+        String knowledgeBaseId,
+        Long documentId
+    ) {
+        VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
+            .vectorStore(vectorStore)
+            .similarityThreshold(ragProperties.getSimilarityThreshold())
+            .topK(ragProperties.getTopK())
+            .filterExpression(buildFilter(knowledgeBaseId, documentId))
+            .build();
+        return RetrievalAugmentationAdvisor.builder()
+            .documentRetriever(retriever)
+            .queryAugmenter(ContextualQueryAugmenter.builder()
+                .allowEmptyContext(false)
+                .emptyContextPromptTemplate(new PromptTemplate(
+                    "There is not enough evidence in the current knowledge base to answer."
+                ))
+                .build())
+            .build();
+    }
+
+    private List<Message> history(String sessionId) {
+        List<Message> messages = chatMemory.get(sessionId);
+        return messages == null ? List.of() : List.copyOf(messages);
     }
 
     /**
