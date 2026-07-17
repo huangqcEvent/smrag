@@ -84,18 +84,20 @@
               <span><el-icon><Document /></el-icon>引用依据</span>
               <span class="citation-count">{{ item.citations.length }}</span>
             </summary>
-            <ol>
-              <li v-for="citation in item.citations" :key="citation.vectorId">
-                <div class="citation-heading">
-                  <strong>{{ citation.documentName || `文档 ${citation.documentId}` }}</strong>
-                  <span v-if="citation.pageNumber != null">第 {{ citation.pageNumber }} 页</span>
-                  <span v-if="citation.score != null">
-                    相关度 {{ formatScore(citation.score) }}
-                  </span>
-                </div>
-                <p>{{ citation.excerpt }}</p>
-              </li>
-            </ol>
+            <div class="citations-content">
+              <ol>
+                <li v-for="citation in item.citations" :key="citation.vectorId">
+                  <div class="citation-heading">
+                    <strong>{{ citation.documentName || `文档 ${citation.documentId}` }}</strong>
+                    <span v-if="citation.pageNumber != null">第 {{ citation.pageNumber }} 页</span>
+                    <span v-if="citation.score != null">
+                      相关度 {{ formatScore(citation.score) }}
+                    </span>
+                  </div>
+                  <p>{{ citation.excerpt }}</p>
+                </li>
+              </ol>
+            </div>
           </details>
 
           <div v-else-if="item.references?.length" class="legacy-references">
@@ -521,6 +523,18 @@ const liveStatus = computed(() => {
   font-size: 0.72rem;
 }
 
+.citations-content {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 180ms ease-out, opacity 180ms ease-out;
+}
+
+.citations[open] .citations-content {
+  max-height: 1000px;
+  opacity: 1;
+}
+
 .citations ol {
   margin: 0;
   padding: 0;
@@ -712,6 +726,10 @@ const liveStatus = computed(() => {
 
   .messages-container {
     scroll-behavior: auto;
+  }
+
+  .citations-content {
+    transition: none;
   }
 }
 
