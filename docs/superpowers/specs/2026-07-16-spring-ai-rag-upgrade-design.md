@@ -29,7 +29,7 @@ This iteration does not include authentication, RBAC, tenant isolation, a knowle
 
 The project remains on JDK 17 and uses the following compatible release line:
 
-- Spring Boot `3.5.7`.
+- Spring Boot `3.5.8`.
 - Spring AI `1.1.2` through `spring-ai-bom`.
 - Spring AI Alibaba `1.1.2.0` through `spring-ai-alibaba-bom`.
 - Spring AI Alibaba Extensions `1.1.2.1` through `spring-ai-alibaba-extensions-bom` for DashScope integration.

@@ -16,18 +16,6 @@ const routes = [
     name: 'Knowledge',
     component: () => import('@/views/Knowledge.vue'),
     meta: { title: '知识库管理' }
-  },
-  {
-    path: '/product',
-    name: 'Product',
-    component: () => import('@/views/Product.vue'),
-    meta: { title: '产品管理' }
-  },
-  {
-    path: '/manager',
-    name: 'Manager',
-    component: () => import('@/views/Manager.vue'),
-    meta: { title: '管理人管理' }
   }
 ]
 
@@ -36,9 +24,9 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
-  document.title = to.meta.title || '私募AI专家'
-  next()
+router.beforeEach((to) => {
+  document.title = `${to.meta.title || '智能知识助手'} | SMRAG`
+  return true
 })
 
 export default router

@@ -1,677 +1,604 @@
 <template>
-  <div class="chat-page">
-    <!-- 页面头部 -->
-    <div class="chat-header">
-      <div class="header-left">
-        <div class="header-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-        </div>
-        <div class="header-info">
-          <h1 class="header-title">智能问答</h1>
-          <p class="header-subtitle">AI驱动的私募基金智能助手</p>
-        </div>
+  <section class="chat-page">
+    <header class="workspace-header">
+      <div>
+        <h1>智能问答</h1>
+        <p>{{ chatHistory.length ? `${chatHistory.length} 轮对话` : '新会话' }}</p>
       </div>
-      <el-button
-        type="primary"
-        @click="clearSession"
-        size="small"
-        class="clear-btn"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-        </svg>
-        清空会话
-      </el-button>
-    </div>
+      <el-tooltip content="清空当前会话" placement="bottom">
+        <el-button
+          class="icon-button"
+          text
+          circle
+          aria-label="清空当前会话"
+          @click="clearSession"
+        >
+          <el-icon><Delete /></el-icon>
+        </el-button>
+      </el-tooltip>
+    </header>
 
-    <!-- 聊天区域 -->
-    <div class="chat-body">
-      <!-- 消息列表 -->
-      <div class="messages-container" ref="messagesContainer">
-        <div v-if="chatHistory.length === 0" class="empty-state">
-          <div class="empty-visual">
-            <div class="empty-circle">
-              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-                <line x1="9" y1="9" x2="9.01" y2="9"/>
-                <line x1="15" y1="9" x2="15.01" y2="9"/>
-              </svg>
-            </div>
-          </div>
-          <div class="empty-content">
-            <h3 class="empty-title">开始您的智能问答之旅</h3>
-            <p class="empty-desc">向AI专家提问，获取专业的私募基金建议和分析</p>
-          </div>
+    <div ref="messagesContainer" class="messages-container" aria-live="polite">
+      <div v-if="chatHistory.length === 0" class="empty-state">
+        <div class="empty-symbol" aria-hidden="true">
+          <el-icon><ChatDotRound /></el-icon>
         </div>
-
-        <div v-for="(item, index) in chatHistory" :key="index" class="message-wrapper">
-          <!-- 用户消息 -->
-          <div class="user-bubble">
-            <div class="bubble-header">
-              <div class="user-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                您
-              </div>
-              <div class="message-time">{{ formatTime(index) }}</div>
-            </div>
-            <div class="bubble-content user-content">
-              {{ item.question }}
-            </div>
-          </div>
-
-          <!-- AI回复 -->
-          <div class="ai-bubble">
-            <div class="bubble-header">
-              <div class="ai-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
-                AI专家
-              </div>
-              <el-tag size="small" :type="getRouteTagType(item.routeType)" class="route-badge">
-                {{ getRouteLabel(item.routeType) }}
-              </el-tag>
-            </div>
-
-            <div class="bubble-content ai-content">
-              <div class="ai-text">{{ item.answer }}</div>
-
-              <!-- 参考资料 -->
-              <div v-if="item.references && item.references.length > 0" class="references-box">
-                <div class="ref-header">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                  </svg>
-                  参考来源
-                </div>
-                <div class="ref-list">
-                  <div v-for="(ref, i) in item.references" :key="i" class="ref-item">
-                    <span class="ref-number">{{ i + 1 }}</span>
-                    <span class="ref-text">{{ ref }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 加载状态 -->
-        <div v-if="loading" class="loading-bubble">
-          <div class="loading-animation">
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-          </div>
-          <span class="loading-label">AI正在分析...</span>
-        </div>
-      </div>
-
-      <!-- 输入区域 -->
-      <div class="input-section">
-        <div class="input-box">
-          <el-input
-            v-model="question"
-            placeholder="输入问题，例如：什么是量化对冲策略？"
-            @keyup.enter="handleSend"
-            :disabled="loading"
-            size="large"
-            class="chat-input"
+        <h2>从一个问题开始</h2>
+        <div class="starter-list">
+          <button
+            v-for="starter in starters"
+            :key="starter"
+            type="button"
+            @click="quickAsk(starter)"
           >
-            <template #suffix>
-              <el-button
-                @click="handleSend"
-                :loading="loading"
-                type="primary"
-                circle
-                class="send-button"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              </el-button>
-            </template>
-          </el-input>
-        </div>
-
-        <!-- 快捷提问 -->
-        <div class="quick-actions">
-          <div class="quick-item" @click="quickAsk('什么是量化对冲策略？')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            知识问答
-          </div>
-          <div class="quick-item" @click="quickAsk('查询高风险产品')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            产品查询
-          </div>
-          <div class="quick-item" @click="quickAsk('对比两只基金的收益率')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10"/>
-              <line x1="12" y1="20" x2="12" y2="4"/>
-              <line x1="6" y1="20" x2="6" y2="14"/>
-            </svg>
-            产品对比
-          </div>
-          <div class="quick-item" @click="quickAsk('推荐适合新手的产品')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            产品推荐
-          </div>
-          <div class="quick-item" @click="quickAsk('生成私募基金销售话术')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            销售话术
-          </div>
+            <span>{{ starter }}</span>
+            <el-icon><ArrowRight /></el-icon>
+          </button>
         </div>
       </div>
+
+      <article
+        v-for="(item, index) in chatHistory"
+        :key="item.sessionId + '-' + index"
+        class="message-pair"
+      >
+        <div class="user-message">
+          <div class="message-meta">
+            <span>你</span>
+            <time>{{ formatTime(item.createTime) }}</time>
+          </div>
+          <p>{{ item.question }}</p>
+        </div>
+
+        <div class="assistant-message">
+          <div class="message-meta assistant-meta">
+            <span class="assistant-name">
+              <el-icon><MagicStick /></el-icon>
+              AI 助手
+            </span>
+            <span class="route-label">{{ getRouteLabel(item.routeType) }}</span>
+          </div>
+          <div class="answer-text">{{ item.answer }}</div>
+
+          <details v-if="item.citations?.length" class="citations">
+            <summary>
+              <span><el-icon><Document /></el-icon>引用依据</span>
+              <span class="citation-count">{{ item.citations.length }}</span>
+            </summary>
+            <ol>
+              <li v-for="citation in item.citations" :key="citation.vectorId">
+                <div class="citation-heading">
+                  <strong>{{ citation.documentName || `文档 ${citation.documentId}` }}</strong>
+                  <span v-if="citation.pageNumber != null">第 {{ citation.pageNumber }} 页</span>
+                  <span v-if="citation.score != null">
+                    相关度 {{ formatScore(citation.score) }}
+                  </span>
+                </div>
+                <p>{{ citation.excerpt }}</p>
+              </li>
+            </ol>
+          </details>
+
+          <div v-else-if="item.references?.length" class="legacy-references">
+            <el-icon><Document /></el-icon>
+            <span>{{ item.references.join('、') }}</span>
+          </div>
+        </div>
+      </article>
+
+      <div v-if="loading" class="thinking-state" role="status">
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+        <span>正在检索并组织答案</span>
+      </div>
     </div>
-  </div>
+
+    <footer class="composer-dock">
+      <div class="scope-row">
+        <el-icon><Collection /></el-icon>
+        <label for="knowledge-base">知识库</label>
+        <el-input
+          id="knowledge-base"
+          v-model="knowledgeBaseId"
+          size="small"
+          maxlength="64"
+          aria-label="知识库 ID"
+        />
+      </div>
+      <div class="composer">
+        <el-input
+          v-model="question"
+          type="textarea"
+          :autosize="{ minRows: 1, maxRows: 4 }"
+          resize="none"
+          maxlength="4000"
+          placeholder="输入问题"
+          :disabled="loading"
+          aria-label="问题"
+          @keydown.enter.exact.prevent="handleSend"
+        />
+        <el-tooltip content="发送" placement="top">
+          <el-button
+            class="send-button"
+            type="primary"
+            circle
+            :loading="loading"
+            :disabled="!question.trim()"
+            aria-label="发送问题"
+            @click="handleSend"
+          >
+            <el-icon v-if="!loading"><Promotion /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+    </footer>
+  </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useChatStore } from '@/stores/chat'
+import { nextTick, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import {
+  ArrowRight,
+  ChatDotRound,
+  Collection,
+  Delete,
+  Document,
+  MagicStick,
+  Promotion
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
 const question = ref('')
+const knowledgeBaseId = ref('default')
 const messagesContainer = ref(null)
+const { chatHistory, loading } = storeToRefs(chatStore)
 
-const { chatHistory, loading, askQuestion, initSession } = chatStore
+const starters = [
+  '知识库中的风险揭示要求是什么？',
+  '查询某只基金产品的风险等级',
+  '对比两只基金的最低投资金额',
+  '生成一段合规的客户沟通话术'
+]
 
-onMounted(() => {
-  initSession()
-})
+onMounted(() => chatStore.initSession())
 
 const handleSend = async () => {
-  if (!question.value.trim()) {
-    ElMessage.warning('请输入问题')
-    return
-  }
+  const value = question.value.trim()
+  if (!value || loading.value) return
 
-  const q = question.value
   question.value = ''
-
-  await askQuestion(q)
-  scrollToBottom()
+  try {
+    await chatStore.askQuestion(value, {
+      knowledgeBaseId: knowledgeBaseId.value.trim() || 'default'
+    })
+    await scrollToBottom()
+  } catch {
+    question.value = value
+  }
 }
 
-const quickAsk = (text) => {
-  question.value = text
+const quickAsk = (value) => {
+  question.value = value
   handleSend()
 }
 
 const clearSession = () => {
   chatStore.clearSession()
-  ElMessage.success('会话已清空')
+  ElMessage.success('已开始新会话')
 }
 
-const scrollToBottom = () => {
-  setTimeout(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  }, 100)
-}
-
-const formatTime = (index) => {
-  return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-const getRouteLabel = (routeType) => {
-  const labels = {
-    KNOWLEDGE_QA: '知识问答',
-    PRODUCT_QUERY: '产品查询',
-    PRODUCT_COMPARE: '产品对比',
-    PRODUCT_RECOMMEND: '产品推荐',
-    SALES_SCRIPT: '销售话术'
+const scrollToBottom = async () => {
+  await nextTick()
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTo({
+      top: messagesContainer.value.scrollHeight,
+      behavior: 'smooth'
+    })
   }
-  return labels[routeType] || routeType
 }
 
-const getRouteTagType = (routeType) => {
-  const types = {
-    KNOWLEDGE_QA: 'success',
-    PRODUCT_QUERY: 'warning',
-    PRODUCT_COMPARE: 'danger',
-    PRODUCT_RECOMMEND: 'info',
-    SALES_SCRIPT: ''
-  }
-  return types[routeType] || 'info'
+const formatTime = (time) => {
+  const date = time ? new Date(time) : new Date()
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
+
+const formatScore = (score) => `${Math.round(Number(score) * 100)}%`
+
+const getRouteLabel = (routeType) => ({
+  KNOWLEDGE_QA: '知识问答',
+  PRODUCT_QUERY: '产品查询',
+  PRODUCT_COMPARE: '产品对比',
+  PRODUCT_RECOMMEND: '产品推荐',
+  MANAGER_QUERY: '基金经理',
+  SALES_SCRIPT: '销售话术'
+}[routeType] || '智能回答')
 </script>
 
 <style scoped>
 .chat-page {
-  height: calc(100vh - 64px);
-  display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, #1a2332 100%);
-  overflow: hidden;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--bg-primary);
 }
 
-.chat-header {
-  padding: 2rem 3rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+.workspace-header {
+  min-height: 76px;
+  padding: 16px clamp(20px, 4vw, 48px);
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  z-index: 2;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.header-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, var(--primary), var(--cta));
-  border-radius: 50%;
-  color: var(--text-primary);
-  animation: glow 2s ease-in-out infinite alternate;
-}
-
-@keyframes glow {
-  from {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
-  }
-  to {
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.8);
-  }
-}
-
-.header-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.header-title {
-  font-family: var(--font-code);
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
+.workspace-header h1 {
   margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
-.header-subtitle {
-  font-size: 0.875rem;
+.workspace-header p {
+  margin: 3px 0 0;
   color: var(--text-muted);
-  margin: 0;
+  font-size: 0.78rem;
 }
 
-.clear-btn {
-  cursor: pointer;
-}
-
-.chat-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-width: 1000px;
-  margin: 0 auto;
-  width: 100%;
+.icon-button {
+  width: 36px;
+  height: 36px;
+  color: var(--text-secondary);
 }
 
 .messages-container {
-  flex: 1;
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 32px clamp(16px, 4vw, 36px) 48px;
   overflow-y: auto;
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  overscroll-behavior: contain;
 }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 32px 0;
 }
 
-.empty-visual {
-  margin-bottom: 2rem;
-}
-
-.empty-circle {
-  position: relative;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-20px);
-  }
-}
-
-.empty-content {
-  max-width: 400px;
-}
-
-.empty-title {
+.empty-symbol {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.75rem;
 }
 
-.empty-desc {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.6;
+.empty-state h2 {
+  margin: 0 0 24px;
+  font-size: 1.25rem;
+  font-weight: 620;
+  letter-spacing: 0;
 }
 
-.message-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.user-bubble, .ai-bubble {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.bubble-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.user-badge, .ai-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-md);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.user-badge {
-  background: rgba(100, 116, 139, 0.2);
-  color: var(--text-secondary);
-}
-
-.ai-badge {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(139, 92, 246, 0.2));
-  color: var(--primary);
-}
-
-.message-time {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.route-badge {
-  cursor: default;
-}
-
-.bubble-content {
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius-lg);
-  line-height: 1.6;
-}
-
-.user-content {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  margin-left: auto;
-  max-width: 70%;
-}
-
-.ai-content {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.6));
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  color: var(--text-primary);
-  max-width: 80%;
-}
-
-.ai-text {
-  font-size: 1rem;
-}
-
-.references-box {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: var(--radius-md);
-}
-
-.ref-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--cta);
-  margin-bottom: 0.75rem;
-  font-weight: 500;
-}
-
-.ref-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.ref-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-}
-
-.ref-number {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: rgba(139, 92, 246, 0.2);
-  border-radius: 50%;
-  color: var(--cta);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.ref-text {
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.loading-bubble {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: var(--radius-lg);
-}
-
-.loading-animation {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.loading-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--primary);
-  border-radius: 50%;
-  animation: bounce 1.4s ease-in-out infinite;
-}
-
-.loading-dot:nth-child(1) {
-  animation-delay: 0s;
-}
-
-.loading-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.loading-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
-}
-
-.loading-label {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.input-section {
-  padding: 1.5rem 2rem 2rem;
-  background: var(--bg-secondary);
+.starter-list {
+  width: min(100%, 520px);
   border-top: 1px solid var(--border);
 }
 
-.input-box {
-  margin-bottom: 1rem;
+.starter-list button {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 160ms ease-out, padding 160ms ease-out;
 }
 
-.chat-input {
-  cursor: text;
+.starter-list button:hover {
+  color: var(--accent);
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.starter-list button:active {
+  transform: scale(0.99);
+}
+
+.message-pair + .message-pair {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.user-message {
+  width: min(78%, 600px);
+  margin-left: auto;
+}
+
+.message-meta {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.user-message p {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--user-message);
+  color: var(--text-primary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.assistant-message {
+  margin-top: 22px;
+}
+
+.assistant-meta {
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.assistant-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.assistant-name .el-icon {
+  color: var(--accent);
+}
+
+.route-label {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.answer-text {
+  max-width: 72ch;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.citations {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.citations summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  list-style: none;
+}
+
+.citations summary::-webkit-details-marker {
+  display: none;
+}
+
+.citations summary > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.citation-count {
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.citations ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.citations li {
+  padding: 13px 0 15px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.citation-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 5px;
+  font-size: 0.78rem;
+}
+
+.citation-heading strong {
+  color: var(--text-primary);
+}
+
+.citation-heading span {
+  color: var(--text-muted);
+}
+
+.citations li p {
+  max-width: 76ch;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.legacy-references {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.thinking-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 28px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.thinking-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: thinking 1.15s ease-in-out infinite;
+}
+
+.thinking-dot:nth-child(2) { animation-delay: 120ms; }
+.thinking-dot:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes thinking {
+  0%, 70%, 100% { opacity: 0.3; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-3px); }
+}
+
+.composer-dock {
+  padding: 10px clamp(16px, 4vw, 36px) 18px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+
+.scope-row,
+.composer {
+  width: min(100%, 788px);
+  margin: 0 auto;
+}
+
+.scope-row {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.scope-row .el-input {
+  width: 130px;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: end;
+  gap: 10px;
+  padding: 9px 10px 9px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-low);
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+}
+
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-focus), var(--shadow-low);
+}
+
+.composer :deep(.el-textarea__inner) {
+  min-height: 38px !important;
+  padding: 8px 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.45;
 }
 
 .send-button {
-  cursor: pointer;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
 }
 
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.quick-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all var(--transition-normal) ease;
-}
-
-.quick-item:hover {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: var(--primary);
-  color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-
-.quick-item svg {
-  opacity: 0.7;
-}
-
-.quick-item:hover svg {
-  opacity: 1;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .chat-header {
-    padding: 1.5rem;
-  }
-
-  .header-icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .header-title {
-    font-size: 1.5rem;
+@media (max-width: 640px) {
+  .workspace-header {
+    min-height: 64px;
   }
 
   .messages-container {
-    padding: 1rem;
+    padding-top: 24px;
   }
 
-  .user-content, .ai-content {
-    max-width: 90%;
+  .user-message {
+    width: 88%;
   }
 
-  .input-section {
-    padding: 1rem;
-  }
-
-  .quick-actions {
-    gap: 0.5rem;
-  }
-
-  .quick-item {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.75rem;
+  .composer-dock {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 }
 
-@media (max-width: 375px) {
-  .header-icon {
-    width: 40px;
-    height: 40px;
+@media (prefers-reduced-motion: reduce) {
+  .thinking-dot {
+    animation: none;
   }
 
-  .header-title {
-    font-size: 1.25rem;
+  .messages-container {
+    scroll-behavior: auto;
   }
+}
 
-  .quick-actions {
-    flex-direction: column;
-  }
-
-  .quick-item {
-    width: 100%;
-    justify-content: center;
+@media (prefers-reduced-transparency: reduce) {
+  .workspace-header,
+  .composer-dock {
+    background: var(--surface);
+    backdrop-filter: none;
   }
 }
 </style>

@@ -32,7 +32,10 @@ public class VectorService {
     }
 
     public List<Document> searchSimilar(String query, int topK) {
-        SearchRequest request = SearchRequest.query(query).withTopK(topK);
+        SearchRequest request = SearchRequest.builder()
+            .query(query)
+            .topK(topK)
+            .build();
         List<Document> results = vectorStore.similaritySearch(request);
         log.info("搜索完成，返回结果数: {}", results.size());
         return results;

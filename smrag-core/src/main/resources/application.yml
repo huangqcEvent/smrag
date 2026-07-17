@@ -11,6 +11,16 @@ spring:
     password: ${SMRAG_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -21,6 +31,21 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
+
+    vectorstore:
+      pgvector:
+        table-name: rag_vector_store
+        dimensions: 1536
+        index-type: hnsw
+        distance-type: cosine-distance
+        initialize-schema: false
+        schema-validation: true
+
     dashscope:
       api-key: ${DASHSCOPE_API_KEY}
       chat:
@@ -40,3 +65,18 @@ mybatis-plus:
 logging:
   level:
     com.hqc.smrag: DEBUG
+
+smrag:
+  ai:
+    rag:
+      top-k: 8
+      similarity-threshold: 0.40
+      max-context-documents: 5
+      memory-window: 12
+      chunk-size: 800
+      min-chunk-size-chars: 350
+      min-chunk-length-to-embed: 20
+      max-num-chunks: 5000
+      keep-separator: true
+      max-upload-size-bytes: 20971520
+      reindex-on-startup: false

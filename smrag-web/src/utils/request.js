@@ -23,10 +23,19 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   response => {
-    return response.data
+    const body = response.data
+    if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
+      if (body.code === 200) {
+        return body.data
+      }
+      const message = body.message || '请求失败'
+      ElMessage.error(message)
+      return Promise.reject(new Error(message))
+    }
+    return body
   },
   error => {
-    ElMessage.error(error.message || '请求失败')
+    ElMessage.error(error.response?.data?.message || error.message || '请求失败')
     return Promise.reject(error)
   }
 )

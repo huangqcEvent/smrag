@@ -1,26 +1,51 @@
 <template>
-  <div class="knowledge-page">
-    <div class="knowledge-container">
-      <!-- 页面标题 -->
-      <div class="page-header">
-        <div class="header-info">
-          <h2 class="page-title glow-text">知识库管理</h2>
-          <p class="page-subtitle">上传和管理私募基金相关文档资料</p>
-        </div>
+  <section class="knowledge-page">
+    <header class="page-toolbar">
+      <div>
+        <h1>知识库</h1>
+        <p>{{ documents.length }} 份文档</p>
       </div>
+      <div class="toolbar-actions">
+        <label for="knowledge-base">知识库</label>
+        <el-input
+          id="knowledge-base"
+          v-model="knowledgeBaseId"
+          size="small"
+          maxlength="64"
+          aria-label="知识库 ID"
+          @change="fetchDocuments"
+        />
+        <el-tooltip content="刷新文档列表" placement="bottom">
+          <el-button
+            text
+            circle
+            aria-label="刷新文档列表"
+            :loading="loading"
+            @click="fetchDocuments"
+          >
+            <el-icon v-if="!loading"><Refresh /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+    </header>
 
-      <!-- 上传区域 -->
-      <div class="upload-section card">
-        <div class="upload-header">
-          <div class="upload-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
+    <div class="knowledge-content">
+      <section class="upload-band" aria-labelledby="upload-title">
+        <div class="upload-copy">
+          <el-icon><UploadFilled /></el-icon>
+          <div>
+            <h2 id="upload-title">上传文档</h2>
+            <p>PDF、DOC、DOCX、TXT，单个文件不超过 20 MB</p>
           </div>
-          <h3 class="upload-title">上传文档</h3>
-          <p class="upload-description">支持 PDF、DOC、DOCX、TXT 格式的文档上传</p>
+        </div>
+
+        <div v-if="selectedFile" class="selected-file">
+          <el-icon><Document /></el-icon>
+          <span class="file-name">{{ selectedFile.name }}</span>
+          <span>{{ formatFileSize(selectedFile.size) }}</span>
+          <el-button text circle aria-label="移除已选文件" @click="clearSelectedFile">
+            <el-icon><Close /></el-icon>
+          </el-button>
         </div>
 
         <div class="upload-actions">
@@ -30,436 +55,446 @@
             :on-change="handleFileChange"
             :show-file-list="false"
             accept=".pdf,.doc,.docx,.txt"
-            class="upload-input"
           >
-            <el-button type="default" size="large" class="file-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
+            <el-button>
+              <el-icon><FolderOpened /></el-icon>
               选择文件
             </el-button>
           </el-upload>
-
           <el-button
             type="primary"
-            size="large"
-            @click="handleUpload"
             :loading="uploading"
             :disabled="!selectedFile"
-            class="upload-btn"
+            @click="handleUpload"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            开始上传
+            <el-icon v-if="!uploading"><Upload /></el-icon>
+            上传
           </el-button>
         </div>
+      </section>
 
-        <div v-if="selectedFile" class="file-preview">
-          <div class="file-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
+      <section class="document-workspace" aria-labelledby="documents-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="documents-title">文档</h2>
+            <p>处理完成的内容可用于检索与引用</p>
           </div>
-          <div class="file-info">
-            <div class="file-name">{{ selectedFile.name }}</div>
-            <div class="file-size">{{ formatFileSize(selectedFile.size) }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 文档列表 -->
-      <div class="documents-section card">
-        <div class="section-header">
-          <h3 class="section-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-            文档列表
-          </h3>
-          <el-button size="small" @click="fetchDocuments" class="refresh-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="23 4 23 10 17 10"/>
-              <polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            刷新
-          </el-button>
+          <span class="status-legend">
+            <span class="status-dot completed"></span>
+            {{ completedCount }} 已完成
+          </span>
         </div>
 
-        <el-table :data="documents" v-loading="loading" class="documents-table">
-          <el-table-column prop="id" label="ID" width="80" align="center" />
-          <el-table-column prop="name" label="文档名称" min-width="200">
-            <template #default="{ row }">
-              <div class="doc-name">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                </svg>
-                {{ row.name }}
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="fileType" label="类型" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag size="small">{{ row.fileType }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="120" align="center">
-            <template #default="{ row }">
-              <div class="status-badge" :class="getStatusClass(row.status)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                {{ row.status }}
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="chunkCount" label="分块数" width="100" align="center">
-            <template #default="{ row }">
-              <div class="chunk-count">{{ row.chunkCount || 0 }}</div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createTime" label="创建时间" width="180" align="center">
-            <template #default="{ row }">
-              {{ formatTime(row.createTime) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" align="center">
-            <template #default="{ row }">
-              <el-button
-                type="danger"
-                size="small"
-                @click="handleDelete(row.id)"
-                class="delete-btn"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
+        <div class="table-scroll">
+          <el-table
+            :data="documents"
+            v-loading="loading"
+            class="documents-table"
+            empty-text="暂无文档"
+          >
+            <el-table-column prop="name" label="文档" min-width="240">
+              <template #default="{ row }">
+                <div class="document-name">
+                  <el-icon><Document /></el-icon>
+                  <div>
+                    <strong>{{ row.name }}</strong>
+                    <span>#{{ row.id }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="fileType" label="类型" width="90" />
+            <el-table-column prop="status" label="状态" width="130">
+              <template #default="{ row }">
+                <span class="document-status" :class="statusClass(row.status)">
+                  <span class="status-dot"></span>
+                  {{ statusLabel(row.status) }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="chunkCount" label="分块" width="90" align="right">
+              <template #default="{ row }">{{ row.chunkCount || 0 }}</template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="创建时间" width="180">
+              <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
+            </el-table-column>
+            <el-table-column label="" width="64" align="right">
+              <template #default="{ row }">
+                <el-tooltip content="删除文档" placement="left">
+                  <el-button
+                    text
+                    circle
+                    class="delete-button"
+                    aria-label="删除文档"
+                    @click="handleDelete(row)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </section>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useKnowledgeStore } from '@/stores/knowledge'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import {
+  Close,
+  Delete,
+  Document,
+  FolderOpened,
+  Refresh,
+  Upload,
+  UploadFilled
+} from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useKnowledgeStore } from '@/stores/knowledge'
 
 const knowledgeStore = useKnowledgeStore()
 const uploadRef = ref()
 const selectedFile = ref(null)
 const uploading = ref(false)
+const { documents, loading, knowledgeBaseId } = storeToRefs(knowledgeStore)
+const { fetchDocuments, upload, remove } = knowledgeStore
 
-const { documents, loading, fetchDocuments, upload, remove } = knowledgeStore
+const completedCount = computed(() => (
+  documents.value.filter(document => document.status === 'COMPLETED').length
+))
 
-onMounted(() => {
-  fetchDocuments()
-})
+onMounted(fetchDocuments)
 
 const handleFileChange = (file) => {
   selectedFile.value = file.raw
 }
 
-const handleUpload = async () => {
-  if (!selectedFile.value) {
-    ElMessage.warning('请先选择文件')
-    return
-  }
+const clearSelectedFile = () => {
+  selectedFile.value = null
+  uploadRef.value?.clearFiles()
+}
 
+const handleUpload = async () => {
+  if (!selectedFile.value) return
   uploading.value = true
   try {
-    const success = await upload(selectedFile.value)
-    if (success) {
-      ElMessage.success('上传成功，文档正在处理中')
-      selectedFile.value = null
-      uploadRef.value?.clearFiles()
-    } else {
-      ElMessage.error('上传失败')
+    if (await upload(selectedFile.value)) {
+      ElMessage.success('文档已提交处理')
+      clearSelectedFile()
     }
   } finally {
     uploading.value = false
   }
 }
 
-const handleDelete = async (id) => {
+const handleDelete = async (document) => {
   try {
-    await ElMessageBox.confirm('确认删除该文档吗？删除后无法恢复', '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-
-    const success = await remove(id)
-    if (success) {
-      ElMessage.success('删除成功')
-    } else {
-      ElMessage.error('删除失败')
+    await ElMessageBox.confirm(
+      `删除“${document.name}”及其全部向量数据？`,
+      '删除文档',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    if (await remove(document.id)) {
+      ElMessage.success('文档已删除')
     }
   } catch {
-    // 取消删除
+    // User cancelled the destructive action.
   }
 }
 
 const formatFileSize = (bytes) => {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const getStatusClass = (status) => {
-  const classes = {
-    'PENDING': 'status-pending',
-    'PROCESSING': 'status-processing',
-    'COMPLETED': 'status-completed',
-    'FAILED': 'status-failed'
-  }
-  return classes[status] || 'status-pending'
-}
+const formatTime = (time) => time
+  ? new Date(time).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  : ''
 
-const formatTime = (time) => {
-  if (!time) return ''
-  return new Date(time).toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+const statusLabel = (status) => ({
+  PENDING: '等待处理',
+  PROCESSING: '处理中',
+  COMPLETED: '已完成',
+  FAILED: '处理失败',
+  DELETING: '删除中'
+}[status] || status)
+
+const statusClass = (status) => `status-${String(status || 'PENDING').toLowerCase()}`
 </script>
 
 <style scoped>
 .knowledge-page {
-  height: calc(100vh - 64px);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--bg-primary);
-  padding: 2rem;
+}
+
+.page-toolbar {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px clamp(20px, 4vw, 48px);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  z-index: 2;
+}
+
+.page-toolbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.page-toolbar p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.toolbar-actions .el-input {
+  width: 140px;
+}
+
+.knowledge-content {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 24px clamp(16px, 4vw, 36px) 40px;
   overflow-y: auto;
 }
 
-.knowledge-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 2rem;
-}
-
-.page-title {
-  font-family: var(--font-code);
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.page-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-.upload-section {
-  margin-bottom: 2rem;
-}
-
-.upload-header {
-  display: flex;
-  flex-direction: column;
+.upload-band {
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 1fr) auto;
   align-items: center;
-  text-align: center;
-  padding: 2rem 0 1.5rem;
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-low);
 }
 
-.upload-icon {
-  color: var(--primary);
-  opacity: 0.8;
-  margin-bottom: 1rem;
+.upload-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.upload-title {
-  font-size: 1.25rem;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem;
+.upload-copy > .el-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 1rem;
 }
 
-.upload-description {
-  color: var(--text-muted);
-  font-size: 0.875rem;
+.upload-copy h2,
+.section-heading h2 {
   margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.upload-copy p,
+.section-heading p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.selected-file {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.selected-file .file-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-actions {
   display: flex;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1.5rem;
-}
-
-.file-btn, .upload-btn {
-  cursor: pointer;
-}
-
-.upload-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.file-preview {
-  display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  margin: 1rem 2rem;
+  gap: 8px;
 }
 
-.file-icon {
-  color: var(--primary);
+.document-workspace {
+  margin-top: 24px;
 }
 
-.file-info {
-  flex: 1;
-}
-
-.file-name {
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.file-size {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.documents-section {
-  overflow: hidden;
-}
-
-.section-header {
+.section-heading {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.status-legend {
+  display: inline-flex;
   align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.section-title svg {
-  color: var(--primary);
-}
-
-.refresh-btn {
-  cursor: pointer;
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-low);
 }
 
 .documents-table {
-  border-top: none;
+  min-width: 780px;
 }
 
-.doc-name {
+.document-name {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 10px;
+  min-width: 0;
+}
+
+.document-name > .el-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.document-name div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.document-name strong {
+  overflow: hidden;
   color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.doc-name svg {
+.document-name span {
   color: var(--text-muted);
+  font-size: 0.68rem;
 }
 
-.status-badge {
+.document-status {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-md);
-  font-size: 0.75rem;
-  font-weight: 500;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
 }
 
-.status-pending {
-  background: rgba(100, 116, 139, 0.15);
+.status-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-completed .status-dot,
+.status-dot.completed { background: var(--success); }
+.status-processing .status-dot { background: var(--info); }
+.status-failed .status-dot { background: var(--danger); }
+.status-deleting .status-dot { background: var(--warning); }
+
+.delete-button {
   color: var(--text-muted);
 }
 
-.status-processing {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--primary);
+.delete-button:hover {
+  color: var(--danger);
 }
 
-.status-completed {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10B981;
-}
-
-.status-failed {
-  background: rgba(239, 68, 68, 0.15);
-  color: #EF4444;
-}
-
-.chunk-count {
-  font-family: var(--font-code);
-  color: var(--cta);
-  font-weight: 500;
-}
-
-.delete-btn {
-  cursor: pointer;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .knowledge-page {
-    padding: 1rem;
+@media (max-width: 780px) {
+  .page-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .page-title {
-    font-size: 1.5rem;
+  .toolbar-actions {
+    width: 100%;
+  }
+
+  .toolbar-actions .el-input {
+    flex: 1;
+    width: auto;
+  }
+
+  .upload-band {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 
   .upload-actions {
-    flex-direction: column;
-  }
-
-  .documents-table {
-    font-size: 0.875rem;
+    justify-content: flex-end;
   }
 }
 
-@media (max-width: 375px) {
-  .upload-header {
-    padding: 1rem 0;
+@media (max-width: 430px) {
+  .knowledge-content {
+    padding-top: 16px;
   }
 
-  .upload-icon {
-    width: 36px;
-    height: 36px;
+  .section-heading {
+    align-items: flex-start;
+  }
+
+  .status-legend {
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .page-toolbar {
+    background: var(--surface);
+    backdrop-filter: none;
   }
 }
 </style>

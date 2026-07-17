@@ -1,42 +1,29 @@
 package com.hqc.smrag.service.chat;
 
 import com.hqc.smrag.enums.RouteType;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
-
-import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RouteService {
 
-    private final ChatClient chatClient;
+    private final RouteDecisionClient decisionClient;
 
-    @Value("classpath:prompts/route_prompt.txt")
-    private Resource routePromptResource;
+    public RouteService(RouteDecisionClient decisionClient) {
+        this.decisionClient = decisionClient;
+    }
 
     public RouteType route(String question) {
         try {
-            String promptTemplate = routePromptResource.getContentAsString(StandardCharsets.UTF_8);
-            String prompt = promptTemplate.replace("{question}", question);
-
-            String result = chatClient.prompt().user(prompt).call().content().trim();
-
-            try {
-                RouteType type = RouteType.valueOf(result);
-                log.info("路由分类: {} -> {}", question, type);
-                return type;
-            } catch (IllegalArgumentException e) {
-                log.warn("路由分类失败，默认返回KNOWLEDGE_QA: {}", result);
+            var decision = decisionClient.decide(question);
+            if (decision == null || decision.routeType() == null) {
                 return RouteType.KNOWLEDGE_QA;
             }
-        } catch (Exception e) {
-            log.error("路由分类异常", e);
+            log.info("Routed question to {}: {}", decision.routeType(), decision.reason());
+            return decision.routeType();
+        } catch (RuntimeException failure) {
+            log.warn("Unable to route question; falling back to knowledge QA", failure);
             return RouteType.KNOWLEDGE_QA;
         }
     }

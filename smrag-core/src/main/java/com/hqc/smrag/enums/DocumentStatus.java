@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum DocumentStatus {
     PENDING("待处理"),
     PROCESSING("处理中"),
+    DELETING("删除中"),
     COMPLETED("已完成"),
     FAILED("失败");
 

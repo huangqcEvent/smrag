@@ -20,22 +20,26 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // 发送问题
-  const askQuestion = async (question, userId = null) => {
+  const askQuestion = async (question, options = {}) => {
     loading.value = true
     try {
       initSession()
       const response = await chatAsk({
         sessionId: currentSessionId.value,
         question,
-        userId
+        userId: options.userId ?? null,
+        knowledgeBaseId: options.knowledgeBaseId || 'default',
+        documentId: options.documentId ?? null
       })
 
       chatHistory.value.push({
         question,
         answer: response.answer,
         routeType: response.routeType,
-        references: response.references,
-        sessionId: response.sessionId
+        references: response.references || [],
+        citations: response.citations || [],
+        sessionId: response.sessionId,
+        createTime: new Date().toISOString()
       })
 
       return response
@@ -48,7 +52,19 @@ export const useChatStore = defineStore('chat', () => {
   const loadHistory = async (sessionId) => {
     try {
       const history = await getChatHistory(sessionId)
-      chatHistory.value = history
+      chatHistory.value = history.map(item => {
+        let citations = []
+        try {
+          citations = JSON.parse(item.referenceDocs || '[]')
+        } catch {
+          citations = []
+        }
+        return {
+          ...item,
+          citations,
+          references: [...new Set(citations.map(citation => citation.documentName).filter(Boolean))]
+        }
+      })
       currentSessionId.value = sessionId
     } catch (error) {
       console.error('加载历史记录失败:', error)

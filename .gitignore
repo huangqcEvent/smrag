@@ -6,6 +6,7 @@ target/
 # IDE
 .idea/
 *.iml
+.claude/settings.local.json
 
 # Logs
 logs/
