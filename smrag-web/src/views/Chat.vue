@@ -43,6 +43,7 @@
         v-for="(item, index) in chatHistory"
         :key="item.sessionId + '-' + index"
         class="message-pair"
+        :class="{ 'message-enter': isRecentMessage(index) }"
       >
         <div class="user-message">
           <div class="message-meta">
@@ -304,6 +305,13 @@ const formatScore = (score) => `${Math.round(Number(score) * 100)}%`
 
 const isGenerating = (item) => item.state === 'pending' || item.state === 'streaming'
 
+const isRecentMessage = (index) => {
+  const item = chatHistory.value[index]
+  if (!item.createTime) return false
+  const elapsed = Date.now() - new Date(item.createTime).getTime()
+  return elapsed < 500 && index === chatHistory.value.length - 1
+}
+
 const getPhaseLabel = (phase) => ({
   ANALYZING: '正在分析问题',
   RETRIEVING: '正在检索知识库',
@@ -443,6 +451,21 @@ const liveStatus = computed(() => {
   margin-top: 32px;
   padding-top: 32px;
   border-top: 1px solid var(--border-subtle);
+}
+
+.message-enter {
+  animation: message-slide-in 200ms ease-out;
+}
+
+@keyframes message-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .user-message {
@@ -818,7 +841,8 @@ const liveStatus = computed(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .thinking-dot,
-  .stream-cursor {
+  .stream-cursor,
+  .message-enter {
     animation: none;
   }
 
