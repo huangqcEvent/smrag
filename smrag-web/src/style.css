@@ -189,3 +189,56 @@ summary:focus-visible {
     --text-muted: #455652;
   }
 }
+
+/* ====== 自定义滚动条样式 ====== */
+
+/* Webkit 内核浏览器（Chrome, Safari, Edge）*/
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border-strong) 50%, transparent);
+  transition: background 160ms ease-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--border-strong) 70%, transparent);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-strong) 50%, transparent) transparent;
+}
+
+/* 悬停容器时滚动条更明显 */
+.messages-container:hover::-webkit-scrollbar-thumb,
+.knowledge-content:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border-strong) 65%, transparent);
+}
+
+/* 移动端优化：更细滚动条 */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+}
+
+/* 尊重减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  ::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}
