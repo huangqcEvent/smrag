@@ -154,6 +154,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
+  ArrowDown,
   ArrowRight,
   ChatDotRound,
   Collection,
@@ -175,6 +176,10 @@ const { chatHistory, loading } = storeToRefs(chatStore)
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 let scrollFrame = 0
 
+// 滚动状态管理
+const isNearBottom = ref(true)
+const showScrollButton = ref(false)
+
 const starters = [
   '知识库中的风险揭示要求是什么？',
   '查询某只基金产品的风险等级',
@@ -182,10 +187,39 @@ const starters = [
   '生成一段合规的客户沟通话术'
 ]
 
-onMounted(() => chatStore.initSession())
+// 监听滚动位置
+const handleScroll = () => {
+  const container = messagesContainer.value
+  if (!container) return
+
+  const threshold = 150
+  const distanceFromBottom =
+    container.scrollHeight - container.scrollTop - container.clientHeight
+
+  isNearBottom.value = distanceFromBottom <= threshold
+  showScrollButton.value = distanceFromBottom > threshold
+}
+
+// 滚动到底部
+const scrollToBottom = (smooth = true) => {
+  const container = messagesContainer.value
+  if (!container) return
+
+  container.scrollTo({
+    top: container.scrollHeight,
+    behavior: smooth && !prefersReducedMotion.matches ? 'smooth' : 'auto'
+  })
+  showScrollButton.value = false
+}
+
+onMounted(() => {
+  chatStore.initSession()
+  messagesContainer.value?.addEventListener('scroll', handleScroll, { passive: true })
+})
 
 onBeforeUnmount(() => {
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  messagesContainer.value?.removeEventListener('scroll', handleScroll)
   chatStore.stopGeneration()
 })
 
@@ -194,7 +228,11 @@ watch(
     const last = chatHistory.value.at(-1)
     return [chatHistory.value.length, last?.answer?.length, last?.state, last?.citations?.length]
   },
-  () => scheduleScrollToBottom(),
+  () => {
+    if (isNearBottom.value) {
+      scheduleScrollToBottom()
+    }
+  },
   { flush: 'post' }
 )
 
