@@ -1,6 +1,7 @@
 package com.hqc.smrag.service.chat;
 
 import com.hqc.smrag.config.RagProperties;
+import com.hqc.smrag.dto.CitationDTO;
 import com.hqc.smrag.exception.AiServiceException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -9,29 +10,29 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 /**
- * \u77e5\u8bc6\u5e93\u95ee\u7b54\u670d\u52a1
+ * 知识库问答服务
  * <p>
- * \u57fa\u4e8e RAG\uff08\u68c0\u7d22\u589e\u5f3a\u751f\u6210\uff09\u67b6\u6784\u7684\u77e5\u8bc6\u5e93\u95ee\u7b54\u670d\u52a1\u3002
- * \u5904\u7406\u6d41\u7a0b\uff1a
+ * 基于 RAG（检索增强生成）架构的知识库问答服务。
+ * 处理流程：
  * <ol>
- *     <li>\u4ece\u5411\u91cf\u6570\u636e\u5e93\u68c0\u7d22\u76f8\u5173\u6587\u6863\u7247\u6bb5</li>
- *     <li>\u5c06\u68c0\u7d22\u7ed3\u679c\u4f5c\u4e3a\u4e0a\u4e0b\u6587\u4f20\u9012\u7ed9\u5927\u8bed\u8a00\u6a21\u578b</li>
- *     <li>\u751f\u6210\u57fa\u4e8e\u4e8b\u5b9e\u7684\u7b54\u6848</li>
- *     <li>\u7ec4\u88c5\u5f15\u7528\u6765\u6e90\u4fe1\u606f</li>
+ *     <li>从向量数据库检索相关文档片段</li>
+ *     <li>将检索结果作为上下文传递给大语言模型</li>
+ *     <li>生成基于事实的答案</li>
+ *     <li>组装引用来源信息</li>
  * </ol>
  *
- * @see KnowledgeChatClient \u77e5\u8bc6\u5e93\u804a\u5929\u5ba2\u6237\u7aef
- * @see CitationAssembler \u5f15\u7528\u7ec4\u88c5\u5668
+ * @see KnowledgeChatClient 知识库聊天客户端
+ * @see CitationAssembler 引用组装器
  */
 @Service
 @RequiredArgsConstructor
 public class KnowledgeQaService {
 
     /**
-     * \u5f53\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u8bc1\u636e\u65f6\u7684\u9ed8\u8ba4\u54cd\u5e94
+     * 当知识库中没有足够证据时的默认响应
      */
     public static final String NO_EVIDENCE_RESPONSE =
-        "\u5f53\u524d\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u4f9d\u636e\u56de\u7b54\u8be5\u95ee\u9898\u3002";
+        "当前知识库中没有足够证据回答该问题。";
 
     private final KnowledgeChatClient chatClient;
     private final CitationAssembler citationAssembler;
@@ -62,18 +63,18 @@ public class KnowledgeQaService {
     }
 
     /**
-     * \u56de\u7b54\u77e5\u8bc6\u5e93\u95ee\u9898
+     * 回答知识库问题
      * <p>
-     * \u6839\u636e\u95ee\u9898\u4ece\u5411\u91cf\u6570\u636e\u5e93\u68c0\u7d22\u76f8\u5173\u6587\u6863\uff0c\u7ed3\u5408\u4e0a\u4e0b\u6587\u751f\u6210\u7b54\u6848\u3002
-     * \u5982\u679c\u6ca1\u6709\u68c0\u7d22\u5230\u76f8\u5173\u6587\u6863\uff0c\u8fd4\u56de\u9ed8\u8ba4\u7684\u65e0\u8bc1\u636e\u54cd\u5e94\u3002
+     * 根据问题从向量数据库检索相关文档，结合上下文生成答案。
+     * 如果没有检索到相关文档，返回默认的无证据响应。
      *
-     * @param question        \u7528\u6237\u95ee\u9898
-     * @param sessionId       \u4f1a\u8bddID\uff0c\u7528\u4e8e\u591a\u8f6e\u5bf9\u8bdd\u8bb0\u5fc6
-     * @param knowledgeBaseId \u77e5\u8bc6\u5e93ID\uff0c\u7528\u4e8e\u6570\u636e\u9694\u79bb
-     * @param documentId      \u6587\u6863ID\uff08\u53ef\u9009\uff09\uff0c\u9650\u5b9a\u68c0\u7d22\u8303\u56f4
-     * @param accessibleDocIds \u7528\u6237\u53ef\u8bbf\u95ee\u7684\u6587\u6863ID\u5217\u8868\uff08\u7528\u4e8e\u6743\u9650\u8fc7\u6ee4\uff09
-     * @return \u95ee\u7b54\u7ed3\u679c\uff0c\u5305\u542b\u7b54\u6848\u548c\u5f15\u7528\u6765\u6e90
-     * @throws AiServiceException AI \u670d\u52a1\u8c03\u7528\u5931\u8d25\u65f6\u629b\u51fa
+     * @param question        用户问题
+     * @param sessionId       会话ID，用于多轮对话记忆
+     * @param knowledgeBaseId 知识库ID，用于数据隔离
+     * @param documentId      文档ID（可选），限定检索范围
+     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @return 问答结果，包含答案和引用来源
+     * @throws AiServiceException AI 服务调用失败时抛出
      */
     public KnowledgeQaResult answer(
         String question,
@@ -98,7 +99,7 @@ public class KnowledgeQaService {
             throw new AiServiceException("Knowledge AI request failed", failure);
         }
         if (knowledgeAnswer.documents().isEmpty()) {
-            return new KnowledgeQaResult(NO_EVIDENCE_RESPONSE, java.util.List.of());
+            return new KnowledgeQaResult(NO_EVIDENCE_RESPONSE, List.of());
         }
         return new KnowledgeQaResult(
             knowledgeAnswer.content(),
@@ -109,6 +110,34 @@ public class KnowledgeQaService {
         );
     }
 
+    /**
+     * 流式回答知识库问题
+     * <p>
+     * 以流式方式返回答案，支持实时显示生成过程。
+     * <p>
+     * 调用链路：
+     * <ol>
+     *     <li>规范化知识库ID（空值返回 "default"）</li>
+     *     <li>调用 SpringAiKnowledgeChatClient.stream() 进行流式生成</li>
+     *     <li>SpringAiKnowledgeChatClient 构建 RAG Advisor：
+     *       <ul>
+     *         <li>构建 Filter 过滤条件（knowledgeBaseId + documentStatus + 权限过滤）</li>
+     *         <li>使用 VectorStoreDocumentRetriever 从 rag_vector_store 表检索相关文档</li>
+     *         <li>使用 ContextualQueryAugmenter 将检索结果作为上下文注入到提示词</li>
+     *       </ul>
+     *     </li>
+     *     <li>调用 Spring AI ChatClient 进行流式生成（调用通义千问 API）</li>
+     *     <li>从第一个响应中提取引用信息，后续响应复用</li>
+     *     <li>组装 CitationDTO 列表</li>
+     * </ol>
+     *
+     * @param question        用户问题
+     * @param sessionId       会话ID，用于多轮对话记忆
+     * @param knowledgeBaseId 知识库ID，用于数据隔离
+     * @param documentId      文档ID（可选），限定检索范围
+     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @return 问答结果流，每个元素包含答案片段和引用来源
+     */
     public Flux<KnowledgeQaResult> stream(
         String question,
         String sessionId,
@@ -126,6 +155,22 @@ public class KnowledgeQaService {
             )));
     }
 
+    /**
+     * 处理流式响应
+     * <p>
+     * 从第一个响应中提取引用信息，后续响应复用该引用列表。
+     * 这样可以避免在每次响应中都携带完整的引用列表，减少数据传输量。
+     * <p>
+     * 处理逻辑：
+     * <ul>
+     *     <li>如果第一个响应为空（无信号），则返回空引用列表</li>
+     *     <li>如果第一个响应的文档列表为空，返回默认无证据响应</li>
+     *     <li>否则，从第一个响应中提取引用，后续响应复用该引用列表</li>
+     * </ul>
+     *
+     * @param source 原始的 KnowledgeAnswer 流（来自 SpringAiKnowledgeChatClient）
+     * @return 转换后的 KnowledgeQaResult 流（包含答案和引用）
+     */
     private Flux<KnowledgeQaResult> mapStream(Flux<KnowledgeChatClient.KnowledgeAnswer> source) {
         return source
             .switchOnFirst((signal, answers) -> {
@@ -139,7 +184,7 @@ public class KnowledgeQaService {
                 if (first.documents().isEmpty()) {
                     return Flux.just(new KnowledgeQaResult(NO_EVIDENCE_RESPONSE, List.of()));
                 }
-                List<com.hqc.smrag.dto.CitationDTO> citations = citationAssembler.assemble(
+                List<CitationDTO> citations = citationAssembler.assemble(
                     first.documents(),
                     ragProperties.getMaxContextDocuments()
                 );
@@ -152,9 +197,9 @@ public class KnowledgeQaService {
     }
 
     /**
-     * \u89c4\u8303\u5316\u77e5\u8bc6\u5e93ID
+     * 规范化知识库ID
      * <p>
-     * \u5982\u679c\u77e5\u8bc6\u5e93ID\u4e3a\u7a7a\u6216\u7a7a\u767d\uff0c\u8fd4\u56de\u9ed8\u8ba4\u503c "default"\u3002
+     * 如果知识库ID为空或空白，返回默认值 "default"。
      */
     private String normalizeKnowledgeBaseId(String knowledgeBaseId) {
         return knowledgeBaseId == null || knowledgeBaseId.isBlank()

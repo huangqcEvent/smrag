@@ -123,6 +123,21 @@ public class AiChatService {
         return toResponse(sessionId, routeType, branchAnswer);
     }
 
+    /**
+     * 流式问答处理入口
+     * <p>
+     * 处理流程：
+     * <ol>
+     *     <li>规范化请求参数（sessionId、question、knowledgeBaseId）</li>
+     *     <li>获取用户可访问的文档ID列表（用于权限过滤）</li>
+     *     <li>发送 ANALYZING 状态事件</li>
+     *     <li>异步执行：问题重写 → 路由决策 → 流式生成</li>
+     *     <li>超时控制和错误处理</li>
+     * </ol>
+     *
+     * @param request 聊天请求
+     * @return SSE 事件流
+     */
     public Flux<ChatStreamEvent> stream(ChatRequestDTO request) {
         Flux<ChatStreamEvent> source = Flux.defer(() -> {
                 StreamRequest normalized = normalizeStreamRequest(request);
@@ -231,6 +246,22 @@ public class AiChatService {
         };
     }
 
+    /**
+     * 流式处理准备
+     * <p>
+     * 按顺序执行以下步骤：
+     * <ol>
+     *     <li>发送 metadata 事件（sessionId、routeType）</li>
+     *     <li>发送 status 事件（RETRIEVING/CALLING_TOOL/GENERATING）</li>
+     *     <li>调用对应分支的流式生成方法</li>
+     *     <li>发送 citations 事件（仅知识库问答）</li>
+     *     <li>持久化对话记录并发送 done 事件</li>
+     * </ol>
+     *
+     * @param context    流式上下文（包含请求、重写问题、路由类型、权限列表）
+     * @param accumulator 流式累加器（累积答案和引用）
+     * @return SSE 事件流
+     */
     private Flux<ChatStreamEvent> streamPrepared(StreamContext context) {
         StreamAccumulator accumulator = new StreamAccumulator();
         return Flux.concat(
@@ -247,6 +278,20 @@ public class AiChatService {
         );
     }
 
+    /**
+     * 根据路由类型调用对应的流式处理分支
+     * <p>
+     * 分支类型：
+     * <ul>
+     *     <li>KNOWLEDGE_QA：知识库问答，调用 KnowledgeQaService.stream()</li>
+     *     <li>PRODUCT_QUERY/COMPARE/RECOMMEND/MANAGER_QUERY：业务查询，调用 BusinessToolChatService.stream()</li>
+     *     <li>SALES_SCRIPT：销售话术，调用 SalesScriptService.stream()</li>
+     * </ul>
+     *
+     * @param context    流式上下文
+     * @param accumulator 流式累加器
+     * @return SSE 事件流（delta 事件）
+     */
     private Flux<ChatStreamEvent> streamBranch(
         StreamContext context,
         StreamAccumulator accumulator
@@ -273,6 +318,16 @@ public class AiChatService {
         };
     }
 
+    /**
+     * 流式知识库问答处理
+     * <p>
+     * 调用 KnowledgeQaService.stream() 获取流式答案，将每个答案片段转换为 delta 事件。
+     * 同时累积答案内容和引用来源，供后续发送 citations 事件使用。
+     *
+     * @param context    流式上下文
+     * @param accumulator 流式累加器
+     * @return SSE 事件流（delta 事件）
+     */
     private Flux<ChatStreamEvent> streamKnowledge(
         StreamContext context,
         StreamAccumulator accumulator
@@ -292,6 +347,16 @@ public class AiChatService {
             .filter(event -> event.content() != null && !event.content().isEmpty());
     }
 
+    /**
+     * 发送引用来源事件
+     * <p>
+     * 仅在知识库问答路由下发送，包含引用文档列表和文档名称列表。
+     * 引用来源从累加器中获取，在 streamKnowledge 阶段已累积完成。
+     *
+     * @param context    流式上下文
+     * @param accumulator 流式累加器
+     * @return SSE 事件流（citations 事件）
+     */
     private Flux<ChatStreamEvent> citationsAfterGeneration(
         StreamContext context,
         StreamAccumulator accumulator
@@ -305,6 +370,15 @@ public class AiChatService {
         )));
     }
 
+    /**
+     * 流式文本处理（用于业务查询和销售话术）
+     * <p>
+     * 将文本片段转换为 delta 事件，同时累积到累加器中。
+     *
+     * @param chunks     文本片段流
+     * @param accumulator 流式累加器
+     * @return SSE 事件流（delta 事件）
+     */
     private Flux<ChatStreamEvent> streamText(
         Flux<String> chunks,
         StreamAccumulator accumulator
@@ -317,6 +391,20 @@ public class AiChatService {
             });
     }
 
+    /**
+     * 持久化对话记录并发送完成事件
+     * <p>
+     * 在流式生成完成后执行：
+     * <ol>
+     *     <li>检查答案是否为空（为空则抛出异常）</li>
+     *     <li>构造 ChatSession 实体并持久化到数据库</li>
+     *     <li>发送 done 事件</li>
+     * </ol>
+     *
+     * @param context    流式上下文
+     * @param accumulator 流式累加器
+     * @return SSE 事件（done 事件）
+     */
     private Mono<ChatStreamEvent> persistAndComplete(
         StreamContext context,
         StreamAccumulator accumulator

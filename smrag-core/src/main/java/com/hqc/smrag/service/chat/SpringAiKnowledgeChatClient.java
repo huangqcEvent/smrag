@@ -118,6 +118,40 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
     }
 
     @Override
+    /**
+     * 流式回答知识库问题
+     * <p>
+     * 调用链路：
+     * <ol>
+     *     <li>构建 RAG Advisor（包含向量检索器和上下文增强器）</li>
+     *     <li>构建 ChatClient 请求：
+     *       <ul>
+     *         <li>设置系统提示词（要求仅根据上下文回答）</li>
+     *         <li>添加历史对话记录（多轮对话记忆）</li>
+     *         <li>添加用户问题</li>
+     *         <li>添加 RAG Advisor</li>
+     *       </ul>
+     *     </li>
+     *     <li>调用 Spring AI ChatClient 进行流式生成</li>
+     *     <li>Spring AI 执行流程：
+     *       <ol>
+     *         <li>RetrievalAugmentationAdvisor 拦截请求</li>
+     *         <li>VectorStoreDocumentRetriever 从 rag_vector_store 表检索相关文档</li>
+     *         <li>ContextualQueryAugmenter 将检索结果注入到提示词</li>
+     *         <li>调用通义千问 API 进行流式生成</li>
+     *       </ol>
+     *     </li>
+     *     <li>从响应上下文中提取引用文档列表</li>
+     *     <li>返回 KnowledgeAnswer 流</li>
+     * </ol>
+     *
+     * @param question        用户问题
+     * @param sessionId       会话ID，用于多轮对话记忆
+     * @param knowledgeBaseId 知识库ID，用于数据隔离
+     * @param documentId      文档ID（可选），限定检索范围
+     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @return KnowledgeAnswer 流，每个元素包含答案片段和引用文档列表
+     */
     public Flux<KnowledgeAnswer> stream(
         String question,
         String sessionId,
@@ -150,6 +184,41 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         });
     }
 
+    /**
+     * 构建 RAG（检索增强生成）Advisor
+     * <p>
+     * RAG Advisor 是 Spring AI 提供的增强顾问，负责在调用大语言模型前进行文档检索和上下文注入。
+     * <p>
+     * 构建流程：
+     * <ol>
+     *     <li>构建 VectorStoreDocumentRetriever（向量文档检索器）：
+     *       <ul>
+     *         <li>设置 VectorStore（PgVectorStore，连接 rag_vector_store 表）</li>
+     *         <li>设置相似度阈值（默认 0.7）</li>
+     *         <li>设置返回文档数量（默认 5）</li>
+     *         <li>设置过滤表达式（knowledgeBaseId + documentStatus + 权限过滤）</li>
+     *       </ul>
+     *     </li>
+     *     <li>构建 RetrievalAugmentationAdvisor（检索增强顾问）：
+     *       <ul>
+     *         <li>设置文档检索器</li>
+     *         <li>设置上下文增强器（ContextualQueryAugmenter）：
+     *           <ul>
+     *             <li>allowEmptyContext=false：禁止空上下文</li>
+     *             <li>emptyContextPromptTemplate：无证据时的提示词</li>
+     *           </ul>
+     *         </li>
+     *       </ul>
+     *     </li>
+     * </ol>
+     * <p>
+     * 执行时机：在 ChatClient 调用时，RAG Advisor 会自动拦截请求，执行文档检索和上下文注入。
+     *
+     * @param knowledgeBaseId 知识库ID，用于数据隔离
+     * @param documentId      文档ID（可选），限定检索范围
+     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @return RAG Advisor 实例
+     */
     private RetrievalAugmentationAdvisor buildRagAdvisor(
         String knowledgeBaseId,
         Long documentId,
