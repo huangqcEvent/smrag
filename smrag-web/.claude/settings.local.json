@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'docs: add micro-interactions and scroll experience design *)",
+      "Bash(git commit -m 'feat: add skeleton loading for document table *)"
+    ]
+  }
+}

@@ -27,12 +27,19 @@ export async function postChatStream(data, options = {}) {
     fetchImpl = globalThis.fetch
   } = options
 
+  // 从 localStorage 读取 token（确保每次请求都获取最新值）
+  const token = globalThis.localStorage?.getItem('accessToken')
+  const headers = {
+    Accept: 'text/event-stream',
+    'Content-Type': 'application/json'
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   const response = await fetchImpl('/api/chat/stream', {
     method: 'POST',
-    headers: {
-      Accept: 'text/event-stream',
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(data),
     signal
   })

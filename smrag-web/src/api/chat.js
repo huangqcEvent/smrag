@@ -30,3 +30,11 @@ export function getChatHistory(sessionId) {
     method: 'get'
   })
 }
+
+// 获取用户会话列表
+export function getUserSessions() {
+  return request({
+    url: '/chat/sessions',
+    method: 'get'
+  })
+}

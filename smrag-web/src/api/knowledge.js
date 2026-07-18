@@ -1,10 +1,11 @@
 import request from '@/utils/request'
 
 // 上传知识文档
-export function uploadDocument(file, knowledgeBaseId = 'default') {
+export function uploadDocument(file, knowledgeBaseId = 'default', roles = ['ADMIN', 'USER']) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('knowledgeBaseId', knowledgeBaseId)
+  formData.append('roles', roles.join(','))
   return request({
     url: '/knowledge/upload',
     method: 'post',
@@ -30,5 +31,11 @@ export function deleteDocument(id, knowledgeBaseId = 'default') {
     url: `/knowledge/${id}`,
     method: 'delete',
     params: { knowledgeBaseId }
+  })
+}
+
+export function setDocumentPermissions(id, roleCodes) {
+  return request.post(`/documents/${id}/permissions`, {
+    permissions: roleCodes.map(roleCode => ({ roleCode, canRead: true }))
   })
 }

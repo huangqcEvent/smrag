@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,17 +54,26 @@ public class ChatController {
      * </ul>
      *
      * @param request 聊天请求，包含问题、会话ID、知识库ID等
+     * @param userId  当前用户ID（从 JWT 中获取）
      * @return 聊天响应，包含答案、引用来源、路由类型等
      */
     @PostMapping("/ask")
-    public Result<ChatResponseDTO> ask(@Valid @RequestBody ChatRequestDTO request) {
+    public Result<ChatResponseDTO> ask(
+        @Valid @RequestBody ChatRequestDTO request,
+        @AuthenticationPrincipal Long userId
+    ) {
+        // 设置当前用户ID，用于权限过滤
+        request.setUserId(userId);
         return Result.success(aiChatService.ask(request));
     }
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<ChatStreamEvent>> stream(
-        @Valid @RequestBody ChatRequestDTO request
+        @Valid @RequestBody ChatRequestDTO request,
+        @AuthenticationPrincipal Long userId
     ) {
+        // 设置当前用户ID，用于权限过滤
+        request.setUserId(userId);
         return aiChatService.stream(request)
             .map(event -> ServerSentEvent.<ChatStreamEvent>builder(event)
                 .event(event.type())
@@ -73,12 +84,30 @@ public class ChatController {
      * 查询对话历史
      * <p>
      * 返回指定会话ID下的所有历史对话记录，按时间顺序排列。
+     * 只能查询当前用户的对话记录。
      *
      * @param sessionId 会话ID
+     * @param userId    当前用户ID（从 JWT 中获取）
      * @return 该会话下的所有对话记录列表
      */
     @GetMapping("/history/{sessionId}")
-    public Result<List<ChatSession>> history(@PathVariable String sessionId) {
-        return Result.success(aiChatService.history(sessionId));
+    public Result<List<ChatSession>> history(
+        @PathVariable String sessionId,
+        @AuthenticationPrincipal Long userId
+    ) {
+        return Result.success(aiChatService.history(sessionId, userId));
+    }
+
+    /**
+     * 查询用户的所有会话列表
+     * <p>
+     * 返回当前用户的所有会话，按最后更新时间倒序排列。
+     *
+     * @param userId 当前用户ID（从 JWT 中获取）
+     * @return 会话列表
+     */
+    @GetMapping("/sessions")
+    public Result<List<ChatSession>> sessions(@AuthenticationPrincipal Long userId) {
+        return Result.success(aiChatService.getUserSessions(userId));
     }
 }

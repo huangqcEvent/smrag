@@ -10,8 +10,10 @@ import com.hqc.smrag.dto.CitationDTO;
 import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.exception.AiServiceException;
+import com.hqc.smrag.service.DocPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -41,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @see SalesScriptService 销售话术服务
  */
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
 public class AiChatService {
 
@@ -51,8 +53,19 @@ public class AiChatService {
     private final BusinessToolChatService businessService;
     private final SalesScriptService salesScriptService;
     private final ChatSessionPersistenceService persistenceService;
+    private final DocPermissionService docPermissionService;
     private final ObjectMapper objectMapper;
     private final ChatStreamProperties streamProperties;
+
+    /** Compatibility constructor for callers that do not perform authenticated retrieval. */
+    public AiChatService(ConversationQueryService queryService, RouteService routeService,
+                         KnowledgeQaService knowledgeService, BusinessToolChatService businessService,
+                         SalesScriptService salesScriptService,
+                         ChatSessionPersistenceService persistenceService,
+                         ObjectMapper objectMapper, ChatStreamProperties streamProperties) {
+        this(queryService, routeService, knowledgeService, businessService, salesScriptService,
+            persistenceService, null, objectMapper, streamProperties);
+    }
 
     /**
      * 处理用户提问
@@ -75,6 +88,12 @@ public class AiChatService {
         StreamRequest normalized = normalizeStreamRequest(request);
         String sessionId = normalized.sessionId();
         String question = normalized.question();
+        Long userId = normalized.userId();
+
+        // 获取用户可访问的文档ID列表（用于权限过滤）
+        List<Long> accessibleDocIds = userId != null && docPermissionService != null
+            ? docPermissionService.getAccessibleDocIds(userId)
+            : null;
 
         String rewrittenQuestion = queryService.rewrite(question, sessionId);
         RouteType routeType = routeService.route(rewrittenQuestion);
@@ -83,7 +102,8 @@ public class AiChatService {
             rewrittenQuestion,
             sessionId,
             normalized.knowledgeBaseId(),
-            normalized.documentId()
+            normalized.documentId(),
+            accessibleDocIds
         );
         if (branchAnswer.answer() == null || branchAnswer.answer().isBlank()) {
             throw new AiServiceException(
@@ -106,13 +126,20 @@ public class AiChatService {
     public Flux<ChatStreamEvent> stream(ChatRequestDTO request) {
         Flux<ChatStreamEvent> source = Flux.defer(() -> {
                 StreamRequest normalized = normalizeStreamRequest(request);
+                Long userId = normalized.userId();
+
+                // 获取用户可访问的文档ID列表（用于权限过滤）
+                List<Long> accessibleDocIds = userId != null && docPermissionService != null
+                    ? docPermissionService.getAccessibleDocIds(userId)
+                    : null;
+
                 Flux<ChatStreamEvent> processing = Mono.fromCallable(() -> {
                         String rewrittenQuestion = queryService.rewrite(
                             normalized.question(),
                             normalized.sessionId()
                         );
                         RouteType routeType = routeService.route(rewrittenQuestion);
-                        return new StreamContext(normalized, rewrittenQuestion, routeType);
+                        return new StreamContext(normalized, rewrittenQuestion, routeType, accessibleDocIds);
                     })
                     .subscribeOn(Schedulers.boundedElastic())
                     .flatMapMany(this::streamPrepared);
@@ -148,10 +175,21 @@ public class AiChatService {
      * 查询会话历史记录
      *
      * @param sessionId 会话ID
+     * @param userId    当前用户ID（用于权限验证）
      * @return 该会话下的所有对话记录，按时间顺序排列
      */
-    public List<ChatSession> history(String sessionId) {
-        return persistenceService.history(sessionId);
+    public List<ChatSession> history(String sessionId, Long userId) {
+        return persistenceService.history(sessionId, userId);
+    }
+
+    /**
+     * 查询用户的所有会话
+     *
+     * @param userId 用户ID
+     * @return 会话列表
+     */
+    public List<ChatSession> getUserSessions(Long userId) {
+        return persistenceService.getUserSessions(userId);
     }
 
     /**
@@ -162,6 +200,7 @@ public class AiChatService {
      * @param sessionId        会话ID
      * @param knowledgeBaseId  知识库ID
      * @param documentId       文档ID（可选）
+     * @param accessibleDocIds 用户可访问的文档ID列表
      * @return 分支处理结果
      */
     private BranchAnswer answer(
@@ -169,16 +208,15 @@ public class AiChatService {
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
         return switch (routeType) {
             case KNOWLEDGE_QA -> {
-                KnowledgeQaResult result = knowledgeQaService.answer(
-                    question,
-                    sessionId,
-                    knowledgeBaseId,
-                    documentId
-                );
+                KnowledgeQaResult result = accessibleDocIds == null
+                    ? knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId)
+                    : knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId,
+                        accessibleDocIds);
                 yield new BranchAnswer(result.answer(), result.citations());
             }
             case PRODUCT_QUERY, PRODUCT_COMPARE, PRODUCT_RECOMMEND, MANAGER_QUERY ->
@@ -239,12 +277,13 @@ public class AiChatService {
         StreamContext context,
         StreamAccumulator accumulator
     ) {
-        return knowledgeQaService.stream(
-                context.rewrittenQuestion(),
-                context.request().sessionId(),
-                context.request().knowledgeBaseId(),
-                context.request().documentId()
-            )
+        Flux<KnowledgeQaResult> source = context.accessibleDocIds() == null
+            ? knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
+                context.request().knowledgeBaseId(), context.request().documentId())
+            : knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
+                context.request().knowledgeBaseId(), context.request().documentId(),
+                context.accessibleDocIds());
+        return source
             .map(chunk -> {
                 accumulator.append(chunk.answer());
                 accumulator.updateCitations(chunk.citations());
@@ -316,7 +355,8 @@ public class AiChatService {
             requireText(request.getSessionId(), "sessionId"),
             requireText(request.getQuestion(), "question"),
             normalizeKnowledgeBaseId(request.getKnowledgeBaseId()),
-            requirePositiveDocumentId(request.getDocumentId())
+            requirePositiveDocumentId(request.getDocumentId()),
+            request.getUserId()
         );
     }
 
@@ -455,14 +495,16 @@ public class AiChatService {
         String sessionId,
         String question,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        Long userId
     ) {
     }
 
     private record StreamContext(
         StreamRequest request,
         String rewrittenQuestion,
-        RouteType routeType
+        RouteType routeType,
+        List<Long> accessibleDocIds
     ) {
     }
 

@@ -58,16 +58,31 @@ public class ChatSessionPersistenceService {
      * 查询指定会话的历史记录
      * <p>
      * 返回该会话下的所有对话记录，按时间顺序排列。
+     * 只能查询当前用户的对话记录。
      *
      * @param sessionId 会话ID
+     * @param userId    当前用户ID（用于权限验证）
      * @return 对话记录列表
      * @throws IllegalArgumentException 会话ID为空时抛出
      */
     @Transactional(readOnly = true)
-    public List<ChatSession> history(String sessionId) {
+    public List<ChatSession> history(String sessionId, Long userId) {
         if (sessionId == null || sessionId.isBlank()) {
             throw new IllegalArgumentException("sessionId must not be blank");
         }
-        return sessionMapper.findBySessionId(sessionId.trim());
+        return sessionMapper.findBySessionIdAndUserId(sessionId.trim(), userId);
+    }
+
+    /**
+     * 查询用户的所有会话
+     * <p>
+     * 返回用户的所有会话，按最后更新时间倒序排列。
+     *
+     * @param userId 用户ID
+     * @return 会话列表
+     */
+    @Transactional(readOnly = true)
+    public List<ChatSession> getUserSessions(Long userId) {
+        return sessionMapper.findSessionsByUserId(userId);
     }
 }

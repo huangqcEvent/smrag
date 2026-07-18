@@ -2,6 +2,7 @@ package com.hqc.smrag.vo;
 
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 文档视图对象（VO）
@@ -23,6 +24,10 @@ import java.time.LocalDateTime;
  */
 @Data
 public class DocumentVO {
+
+    private boolean accessible;
+
+    private List<RoleVO> allowedRoles = List.of();
 
     /**
      * 文档ID

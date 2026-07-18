@@ -13,11 +13,17 @@ import java.util.List;
  *     <li>多知识库隔离：通过 knowledgeBaseId 区分不同知识库</li>
  *     <li>文档级别限定：通过 documentId 限定检索范围</li>
  *     <li>多轮对话记忆：通过 sessionId 维护对话上下文</li>
+ *     <li>权限过滤：通过 accessibleDocIds 限制可访问的文档</li>
  * </ul>
  *
  * @see SpringAiKnowledgeChatClient Spring AI 实现类
  */
 public interface KnowledgeChatClient {
+
+    default KnowledgeAnswer answer(String question, String sessionId,
+                                    String knowledgeBaseId, Long documentId) {
+        return answer(question, sessionId, knowledgeBaseId, documentId, List.of());
+    }
 
     /**
      * 基于知识库回答问题
@@ -26,21 +32,29 @@ public interface KnowledgeChatClient {
      * @param sessionId       会话ID，用于多轮对话记忆
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
+     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
      * @return 知识库答案，包含答案内容和引用的文档列表
      */
     KnowledgeAnswer answer(
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     );
 
     Flux<KnowledgeAnswer> stream(
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     );
+
+    default Flux<KnowledgeAnswer> stream(String question, String sessionId,
+                                         String knowledgeBaseId, Long documentId) {
+        return stream(question, sessionId, knowledgeBaseId, documentId, List.of());
+    }
 
     /**
      * 知识库答案记录类
