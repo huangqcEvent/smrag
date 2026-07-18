@@ -1,9 +1,9 @@
 <template>
   <div class="app-shell">
     <header class="app-header">
-      <button class="brand" type="button" aria-label="SMRAG 智能知识助手" @click="goHome">
+      <button class="brand" type="button" aria-label="私募AI专家" @click="goHome">
         <span class="brand-mark">S</span>
-        <span>SMRAG</span>
+        <span>私募AI专家</span>
       </button>
 
       <nav aria-label="主导航">
@@ -15,7 +15,22 @@
           <el-icon><Collection /></el-icon>
           <span>知识库</span>
         </router-link>
+        <router-link v-if="authStore.isAdmin" to="/users" :class="{ active: route.path === '/users' }">
+          <el-icon><User /></el-icon>
+          <span>用户管理</span>
+        </router-link>
       </nav>
+
+      <div class="user-info" v-if="authStore.isLoggedIn">
+        <span class="username">{{ authStore.username }}</span>
+        <el-tag size="small" :type="authStore.isAdmin ? 'danger' : 'info'">
+          {{ authStore.isAdmin ? '管理员' : '用户' }}
+        </el-tag>
+        <el-button type="primary" link @click="handleLogout">
+          <el-icon><SwitchButton /></el-icon>
+          <span>退出</span>
+        </el-button>
+      </div>
     </header>
 
     <main class="app-main">
@@ -32,12 +47,20 @@
 </template>
 
 <script setup>
-import { ChatDotRound, Collection } from '@element-plus/icons-vue'
+import { ChatDotRound, Collection, User, SwitchButton } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+
 const goHome = () => router.push('/chat')
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
+}
 </script>
 
 <style scoped>
@@ -123,6 +146,18 @@ nav a:active,
   transform: scale(0.97);
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.username {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .app-main {
   min-height: 0;
   overflow: hidden;
@@ -176,6 +211,10 @@ nav a:active,
   }
 
   nav a span {
+    display: none;
+  }
+
+  .user-info .username {
     display: none;
   }
 }

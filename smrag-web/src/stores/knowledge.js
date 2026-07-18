@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { uploadDocument, getDocumentList, deleteDocument } from '@/api/knowledge'
+import { uploadDocument, getDocumentList, deleteDocument, setDocumentPermissions } from '@/api/knowledge'
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
   const documents = ref([])
@@ -18,9 +18,9 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   }
 
   // 上传文档
-  const upload = async (file) => {
+  const upload = async (file, knowledgeBase = null, roles = ['ADMIN', 'USER']) => {
     try {
-      await uploadDocument(file, knowledgeBaseId.value.trim() || 'default')
+      await uploadDocument(file, knowledgeBase || knowledgeBaseId.value.trim() || 'default', roles)
       await fetchDocuments()
       return true
     } catch (error) {
@@ -41,12 +41,18 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     }
   }
 
+  const updatePermissions = async (id, roleCodes) => {
+    await setDocumentPermissions(id, roleCodes)
+    await fetchDocuments()
+  }
+
   return {
     documents,
     loading,
     knowledgeBaseId,
     fetchDocuments,
     upload,
-    remove
+    remove,
+    updatePermissions
   }
 })

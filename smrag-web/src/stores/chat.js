@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { chatStream, getChatHistory } from '@/api/chat'
+import { chatStream, getChatHistory, getUserSessions } from '@/api/chat'
 import { applyChatStreamEvent, createPendingChatMessage } from './chatStreamState'
+import { resetChatAccountState } from './chatAccountState'
 
 export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref('')
   const chatHistory = ref([])
   const loading = ref(false)
+  const sessionList = ref([])
   let activeController = null
   let activeMessage = null
 
@@ -19,6 +21,16 @@ export const useChatStore = defineStore('chat', () => {
   const initSession = () => {
     if (!currentSessionId.value) {
       currentSessionId.value = generateSessionId()
+    }
+  }
+
+  // 加载会话列表
+  const loadSessionList = async () => {
+    try {
+      const sessions = await getUserSessions()
+      sessionList.value = sessions
+    } catch (error) {
+      console.error('加载会话列表失败:', error)
     }
   }
 
@@ -122,14 +134,33 @@ export const useChatStore = defineStore('chat', () => {
     chatHistory.value = []
   }
 
+  const resetForAccountChange = () => {
+    const state = {
+      currentSessionId: currentSessionId.value,
+      chatHistory: chatHistory.value,
+      sessionList: sessionList.value,
+      loading: loading.value
+    }
+    resetChatAccountState(state, activeController)
+    currentSessionId.value = state.currentSessionId
+    chatHistory.value = state.chatHistory
+    sessionList.value = state.sessionList
+    loading.value = state.loading
+    activeController = null
+    activeMessage = null
+  }
+
   return {
     currentSessionId,
     chatHistory,
     loading,
+    sessionList,
     askQuestion,
     stopGeneration,
     loadHistory,
+    loadSessionList,
     clearSession,
-    initSession
+    initSession,
+    resetForAccountChange
   }
 })

@@ -71,6 +71,11 @@ logging:
     com.hqc.smrag: DEBUG
 
 smrag:
+  security:
+    jwt:
+      secret-key: ${SMRAG_JWT_SECRET_KEY}
+      access-token-expiration: 7200000  # 2 hours
+      refresh-token-expiration: 604800000  # 7 days
   ai:
     chat:
       stream:

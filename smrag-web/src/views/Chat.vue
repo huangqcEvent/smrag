@@ -1,22 +1,60 @@
 <template>
   <section class="chat-page">
-    <header class="workspace-header">
-      <div>
-        <h1>智能问答</h1>
-        <p>{{ chatHistory.length ? `${chatHistory.length} 轮对话` : '新会话' }}</p>
-      </div>
-      <el-tooltip content="清空当前会话" placement="bottom">
-        <el-button
-          class="icon-button"
-          text
-          circle
-          aria-label="清空当前会话"
-          @click="clearSession"
+    <!-- 左侧会话列表 -->
+    <aside class="session-sidebar">
+      <header class="sidebar-header">
+        <h2>历史对话</h2>
+        <el-tooltip content="新建会话" placement="bottom">
+          <el-button
+            class="icon-button"
+            text
+            circle
+            aria-label="新建会话"
+            @click="clearSession"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </header>
+      <div class="session-list">
+        <button
+          v-for="session in sessionList"
+          :key="session.sessionId"
+          :class="['session-item', { active: currentSessionId === session.sessionId }]"
+          type="button"
+          @click="loadSession(session.sessionId)"
         >
-          <el-icon><Delete /></el-icon>
-        </el-button>
-      </el-tooltip>
-    </header>
+          <el-icon class="session-icon"><ChatDotRound /></el-icon>
+          <div class="session-info">
+            <span class="session-title">{{ getSessionTitle(session) }}</span>
+            <span class="session-time">{{ formatSessionTime(session.createTime) }}</span>
+          </div>
+        </button>
+        <div v-if="sessionList.length === 0" class="empty-sessions">
+          <p>暂无历史对话</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧聊天区域 -->
+    <div class="chat-main">
+      <header class="workspace-header">
+        <div>
+          <h1>智能问答</h1>
+          <p>{{ chatHistory.length ? `${chatHistory.length} 轮对话` : '新会话' }}</p>
+        </div>
+        <el-tooltip content="清空当前会话" placement="bottom">
+          <el-button
+            class="icon-button"
+            text
+            circle
+            aria-label="清空当前会话"
+            @click="clearSession"
+          >
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </header>
 
     <p class="sr-only" role="status" aria-live="polite">{{ liveStatus }}</p>
 
@@ -161,6 +199,7 @@
         <el-icon><ArrowDown /></el-icon>
       </button>
     </transition>
+    </div>
   </section>
 </template>
 
@@ -175,18 +214,20 @@ import {
   Delete,
   Document,
   MagicStick,
+  Plus,
   Promotion,
   VideoPause
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import { useChatStore } from '@/stores/chat'
+import { resetScrollAfterHistoryLoad, shouldAutoScroll } from '@/utils/chatScrollState'
 
 const chatStore = useChatStore()
 const question = ref('')
 const knowledgeBaseId = ref('default')
 const messagesContainer = ref(null)
-const { chatHistory, loading } = storeToRefs(chatStore)
+const { chatHistory, loading, sessionList, currentSessionId } = storeToRefs(chatStore)
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 let scrollFrame = 0
 
@@ -228,6 +269,7 @@ const scrollToBottom = (smooth = true) => {
 
 onMounted(() => {
   chatStore.initSession()
+  chatStore.loadSessionList()
   messagesContainer.value?.addEventListener('scroll', handleScroll, { passive: true })
 })
 
@@ -243,7 +285,7 @@ watch(
     return [chatHistory.value.length, last?.answer?.length, last?.state, last?.citations?.length]
   },
   () => {
-    if (isNearBottom.value) {
+    if (shouldAutoScroll(isNearBottom.value)) {
       scheduleScrollToBottom()
     }
   },
@@ -280,6 +322,37 @@ const quickAsk = (value) => {
 const clearSession = () => {
   chatStore.clearSession()
   ElMessage.success('已开始新会话')
+}
+
+const loadSession = async (sessionId) => {
+  await chatStore.loadHistory(sessionId)
+  await nextTick()
+  const scrollState = resetScrollAfterHistoryLoad()
+  isNearBottom.value = scrollState.isNearBottom
+  showScrollButton.value = scrollState.showScrollButton
+  scrollToBottom(false)
+}
+
+const getSessionTitle = (session) => {
+  return session.question || '新对话'
+}
+
+const formatSessionTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (days === 0) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } else if (days === 1) {
+    return '昨天'
+  } else if (days < 7) {
+    return `${days}天前`
+  } else {
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  }
 }
 
 const scheduleScrollToBottom = () => {
@@ -342,9 +415,109 @@ const liveStatus = computed(() => {
 <style scoped>
 .chat-page {
   height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  background: var(--bg-primary);
+}
+
+/* ====== 会话侧边栏 ====== */
+
+.session-sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sidebar-header {
+  min-height: 56px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.session-list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.session-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.session-item:hover {
+  background: var(--surface-raised);
+}
+
+.session-item.active {
+  background: var(--accent-soft);
+}
+
+.session-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.session-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.session-title {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.empty-sessions {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ====== 聊天主区域 ====== */
+
+.chat-main {
+  min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  background: var(--bg-primary);
+  min-width: 0;
 }
 
 .workspace-header {
@@ -380,6 +553,7 @@ const liveStatus = computed(() => {
 }
 
 .messages-container {
+  min-height: 0;
   width: min(100%, 860px);
   margin: 0 auto;
   padding: 32px clamp(16px, 4vw, 36px) 48px;
@@ -817,6 +991,14 @@ const liveStatus = computed(() => {
 }
 
 @media (max-width: 640px) {
+  .chat-page {
+    grid-template-columns: 1fr;
+  }
+
+  .session-sidebar {
+    display: none;
+  }
+
   .workspace-header {
     min-height: 64px;
   }

@@ -76,7 +76,7 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      * <p>
      * 处理流程：
      * <ol>
-     *     <li>构建过滤条件（知识库ID、文档状态、可选的文档ID）</li>
+     *     <li>构建过滤条件（知识库ID、文档状态、可选的文档ID、权限过滤）</li>
      *     <li>配置向量检索器（相似度阈值、返回数量、过滤条件）</li>
      *     <li>配置 RAG 增强顾问（检索器 + 上下文增强器）</li>
      *     <li>调用 ChatClient 生成答案</li>
@@ -87,6 +87,7 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      * @param sessionId       会话ID
      * @param knowledgeBaseId 知识库ID
      * @param documentId      文档ID（可选）
+     * @param accessibleDocIds 用户可访问的文档ID列表
      * @return 知识库答案
      */
     @Override
@@ -94,9 +95,10 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
-        RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId);
+        RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId, accessibleDocIds);
 
         ChatClientResponse response = chatClient.prompt()
             .system(SYSTEM_PROMPT)
@@ -120,10 +122,11 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
         return Flux.defer(() -> {
-            RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId);
+            RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId, accessibleDocIds);
             return chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .messages(history(sessionId))
@@ -149,13 +152,14 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
 
     private RetrievalAugmentationAdvisor buildRagAdvisor(
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(ragProperties.getSimilarityThreshold())
             .topK(ragProperties.getTopK())
-            .filterExpression(buildFilter(knowledgeBaseId, documentId))
+            .filterExpression(buildFilter(knowledgeBaseId, documentId, accessibleDocIds))
             .build();
         return RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
@@ -182,16 +186,51 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      *     <li>文档状态为 COMPLETED</li>
      * </ul>
      * 如果指定了文档ID，额外添加文档ID过滤条件。
+     * 如果提供了可访问文档列表，添加文档ID IN 条件（权限过滤）。
      */
-    private Filter.Expression buildFilter(String knowledgeBaseId, Long documentId) {
+    private Filter.Expression buildFilter(
+        String knowledgeBaseId,
+        Long documentId,
+        List<Long> accessibleDocIds
+    ) {
         FilterExpressionBuilder filters = new FilterExpressionBuilder();
-        FilterExpressionBuilder.Op scope = filters.and(
+
+        // 基础过滤：知识库ID + 文档状态
+        FilterExpressionBuilder.Op baseFilter = filters.and(
             filters.eq("knowledgeBaseId", knowledgeBaseId),
             filters.eq("documentStatus", "COMPLETED")
         );
-        return documentId == null
-            ? scope.build()
-            : filters.and(scope, filters.eq("documentId", documentId)).build();
+
+        // 文档ID过滤（如果指定）
+        FilterExpressionBuilder.Op filter = documentId != null
+            ? filters.and(baseFilter, filters.eq("documentId", documentId))
+            : baseFilter;
+
+        // 权限过滤：只检索用户有权限的文档
+        if (accessibleDocIds == null || accessibleDocIds.isEmpty()) {
+            // An authenticated user without grants must never fall back to an
+            // unrestricted knowledge-base search. Document ids are positive.
+            filter = filters.and(filter, filters.eq("documentId", -1L));
+        } else {
+            if (accessibleDocIds.size() == 1) {
+                // 单个文档ID，使用 eq
+                filter = filters.and(filter, filters.eq("documentId", accessibleDocIds.get(0)));
+            } else {
+                // 多个文档ID，使用 OR 组合多个 eq 条件
+                List<FilterExpressionBuilder.Op> docIdFilters = accessibleDocIds.stream()
+                    .map(docId -> filters.eq("documentId", docId))
+                    .toList();
+
+                // 构建 OR 条件：第一个和第二个 or，然后结果和第三个 or，依此类推
+                FilterExpressionBuilder.Op orFilter = docIdFilters.get(0);
+                for (int i = 1; i < docIdFilters.size(); i++) {
+                    orFilter = filters.or(orFilter, docIdFilters.get(i));
+                }
+                filter = filters.and(filter, orFilter);
+            }
+        }
+
+        return filter.build();
     }
 
     /**

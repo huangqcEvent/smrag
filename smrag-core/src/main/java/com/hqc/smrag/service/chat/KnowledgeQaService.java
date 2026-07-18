@@ -37,6 +37,30 @@ public class KnowledgeQaService {
     private final CitationAssembler citationAssembler;
     private final RagProperties ragProperties;
 
+    public KnowledgeQaResult answer(String question, String sessionId,
+                                    String knowledgeBaseId, Long documentId) {
+        String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
+        try {
+            KnowledgeChatClient.KnowledgeAnswer result = chatClient.answer(
+                question, sessionId, normalizedKnowledgeBaseId, documentId);
+            if (result.documents().isEmpty()) {
+                return new KnowledgeQaResult(NO_EVIDENCE_RESPONSE, List.of());
+            }
+            return new KnowledgeQaResult(result.content(), citationAssembler.assemble(
+                result.documents(), ragProperties.getMaxContextDocuments()));
+        } catch (AiServiceException failure) {
+            throw failure;
+        } catch (RuntimeException failure) {
+            throw new AiServiceException("Knowledge AI request failed", failure);
+        }
+    }
+
+    public Flux<KnowledgeQaResult> stream(String question, String sessionId,
+                                          String knowledgeBaseId, Long documentId) {
+        String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
+        return mapStream(chatClient.stream(question, sessionId, normalizedKnowledgeBaseId, documentId));
+    }
+
     /**
      * \u56de\u7b54\u77e5\u8bc6\u5e93\u95ee\u9898
      * <p>
@@ -47,6 +71,7 @@ public class KnowledgeQaService {
      * @param sessionId       \u4f1a\u8bddID\uff0c\u7528\u4e8e\u591a\u8f6e\u5bf9\u8bdd\u8bb0\u5fc6
      * @param knowledgeBaseId \u77e5\u8bc6\u5e93ID\uff0c\u7528\u4e8e\u6570\u636e\u9694\u79bb
      * @param documentId      \u6587\u6863ID\uff08\u53ef\u9009\uff09\uff0c\u9650\u5b9a\u68c0\u7d22\u8303\u56f4
+     * @param accessibleDocIds \u7528\u6237\u53ef\u8bbf\u95ee\u7684\u6587\u6863ID\u5217\u8868\uff08\u7528\u4e8e\u6743\u9650\u8fc7\u6ee4\uff09
      * @return \u95ee\u7b54\u7ed3\u679c\uff0c\u5305\u542b\u7b54\u6848\u548c\u5f15\u7528\u6765\u6e90
      * @throws AiServiceException AI \u670d\u52a1\u8c03\u7528\u5931\u8d25\u65f6\u629b\u51fa
      */
@@ -54,7 +79,8 @@ public class KnowledgeQaService {
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
         String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
         KnowledgeChatClient.KnowledgeAnswer knowledgeAnswer;
@@ -63,7 +89,8 @@ public class KnowledgeQaService {
                 question,
                 sessionId,
                 normalizedKnowledgeBaseId,
-                documentId
+                documentId,
+                accessibleDocIds
             );
         } catch (AiServiceException failure) {
             throw failure;
@@ -86,15 +113,21 @@ public class KnowledgeQaService {
         String question,
         String sessionId,
         String knowledgeBaseId,
-        Long documentId
+        Long documentId,
+        List<Long> accessibleDocIds
     ) {
         String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
-        return Flux.defer(() -> chatClient.stream(
+        return mapStream(Flux.defer(() -> chatClient.stream(
                 question,
                 sessionId,
                 normalizedKnowledgeBaseId,
-                documentId
-            ))
+                documentId,
+                accessibleDocIds
+            )));
+    }
+
+    private Flux<KnowledgeQaResult> mapStream(Flux<KnowledgeChatClient.KnowledgeAnswer> source) {
+        return source
             .switchOnFirst((signal, answers) -> {
                 if (!signal.hasValue()) {
                     return answers.map(answer -> new KnowledgeQaResult(

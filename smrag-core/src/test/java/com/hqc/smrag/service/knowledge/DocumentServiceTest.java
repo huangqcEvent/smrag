@@ -8,6 +8,7 @@ import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class DocumentServiceTest {
     private final DocumentUploadPersistenceService uploadPersistenceService =
         mock(DocumentUploadPersistenceService.class);
     private final RagProperties properties = new RagProperties();
+    private final DocPermissionService docPermissionService = mock(DocPermissionService.class);
 
     @BeforeAll
     static void initializeMybatisMetadata() {
@@ -202,7 +204,8 @@ class DocumentServiceTest {
             uploadPersistenceService,
             vectorStore,
             properties,
-            uploadDir.toString()
+            uploadDir.toString(),
+            docPermissionService
         );
     }
 

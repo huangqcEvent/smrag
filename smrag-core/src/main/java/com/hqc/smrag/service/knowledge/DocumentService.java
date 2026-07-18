@@ -8,6 +8,7 @@ import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +70,7 @@ public class DocumentService {
     private final VectorStore vectorStore;
     private final RagProperties properties;
     private final String uploadDir;
+    private final DocPermissionService docPermissionService;
 
     @Autowired
     public DocumentService(
@@ -76,7 +78,8 @@ public class DocumentService {
         KnowledgeChunkMapper chunkMapper,
         DocumentUploadPersistenceService uploadPersistenceService,
         VectorStore vectorStore,
-        RagProperties properties
+        RagProperties properties,
+        DocPermissionService docPermissionService
     ) {
         this(
             documentMapper,
@@ -84,7 +87,8 @@ public class DocumentService {
             uploadPersistenceService,
             vectorStore,
             properties,
-            DEFAULT_UPLOAD_DIR
+            DEFAULT_UPLOAD_DIR,
+            docPermissionService
         );
     }
 
@@ -94,7 +98,8 @@ public class DocumentService {
         DocumentUploadPersistenceService uploadPersistenceService,
         VectorStore vectorStore,
         RagProperties properties,
-        String uploadDir
+        String uploadDir,
+        DocPermissionService docPermissionService
     ) {
         this.documentMapper = documentMapper;
         this.chunkMapper = chunkMapper;
@@ -102,6 +107,7 @@ public class DocumentService {
         this.vectorStore = vectorStore;
         this.properties = properties;
         this.uploadDir = uploadDir;
+        this.docPermissionService = docPermissionService;
     }
 
     /**
@@ -167,6 +173,8 @@ public class DocumentService {
 
         try {
             Long documentId = uploadPersistenceService.createDocumentAndOutbox(document);
+            // 设置默认权限（ADMIN 和 USER 都可读）
+            docPermissionService.setDefaultPermissions(documentId);
             log.info("Submitted document {} version {} for ingestion", document.getId(), document.getVersion());
             return documentId;
         } catch (RuntimeException failure) {
