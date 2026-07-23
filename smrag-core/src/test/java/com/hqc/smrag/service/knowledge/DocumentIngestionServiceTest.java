@@ -4,20 +4,25 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.storage.DocumentSourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,17 +39,50 @@ class DocumentIngestionServiceTest {
     private final VectorStore vectorStore = mock(VectorStore.class);
     private final DocumentIngestionPersistenceService persistenceService =
         mock(DocumentIngestionPersistenceService.class);
+    private final DocumentSourceResolver sourceResolver = mock(DocumentSourceResolver.class);
+    @TempDir
+    Path tempDir;
     private DocumentIngestionService ingestionService;
 
     @BeforeEach
     void setUp() {
+        when(sourceResolver.resolve(any(KnowledgeDocument.class))).thenAnswer(invocation -> {
+            KnowledgeDocument document = invocation.getArgument(0);
+            return new DocumentSourceResolver.ResolvedSource(
+                Path.of(document.getFilePath()), false);
+        });
         ingestionService = new DocumentIngestionService(
             documentMapper,
             reader,
             chunker,
             vectorStore,
-            persistenceService
+            persistenceService,
+            sourceResolver
         );
+    }
+
+    @Test
+    void resolvesMinioSourceAndDeletesTemporaryFileAfterIngestion() throws Exception {
+        KnowledgeDocument document = document(2, DocumentStatus.PENDING);
+        document.setStorageType("MINIO");
+        document.setObjectKey("rag/document/42/file.pdf");
+        document.setFilePath(null);
+        Path temporaryFile = Files.writeString(tempDir.resolve("source.pdf"), "content");
+        when(documentMapper.selectById(42L)).thenReturn(document);
+        when(persistenceService.markProcessing(42L, 2, PROCESSING_TOKEN)).thenReturn(true);
+        doReturn(new DocumentSourceResolver.ResolvedSource(temporaryFile, true))
+            .when(sourceResolver).resolve(document);
+        List<Document> sources = List.of(new Document("source text"));
+        List<Document> chunks = chunks();
+        when(reader.read(temporaryFile, "PDF")).thenReturn(sources);
+        when(chunker.chunk(
+            sources, "default", 42L, "enterprise-rag.pdf", "PDF", 2,
+            DocumentStatus.COMPLETED.name(), "checksum-42")).thenReturn(chunks);
+
+        ingestionService.process(task(2));
+
+        verify(reader).read(temporaryFile, "PDF");
+        org.assertj.core.api.Assertions.assertThat(temporaryFile).doesNotExist();
     }
 
     @Test

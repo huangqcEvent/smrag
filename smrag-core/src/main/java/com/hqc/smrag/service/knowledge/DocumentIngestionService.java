@@ -4,13 +4,13 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.storage.DocumentSourceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -54,6 +54,7 @@ public class DocumentIngestionService {
     private final DocumentChunker chunker;
     private final VectorStore vectorStore;
     private final DocumentIngestionPersistenceService persistenceService;
+    private final DocumentSourceResolver sourceResolver;
 
     /**
      * 处理文档解析任务
@@ -104,10 +105,7 @@ public class DocumentIngestionService {
                 );
                 return;
             }
-            List<Document> sources = reader.read(
-                Path.of(document.getFilePath()),
-                document.getFileType()
-            );
+            List<Document> sources = readSources(document);
             chunks = chunker.chunk(
                 sources,
                 document.getKnowledgeBaseId(),
@@ -151,6 +149,17 @@ public class DocumentIngestionService {
                 failure.addSuppressed(statusFailure);
             }
             throw failure;
+        }
+    }
+
+    private List<Document> readSources(KnowledgeDocument document) {
+        try (DocumentSourceResolver.ResolvedSource source =
+                 sourceResolver.resolve(document)) {
+            return reader.read(source.path(), document.getFileType());
+        } catch (java.io.IOException failure) {
+            throw new IllegalStateException(
+                "Unable to clean up document source for " + document.getId(),
+                failure);
         }
     }
 
