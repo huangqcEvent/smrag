@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import static org.mockito.Mockito.doThrow;
@@ -78,7 +79,7 @@ class DocumentServiceTest {
         );
 
         assertThatThrownBy(() -> documentService.uploadDocument(
-            file, "research", List.of("ADMIN", "USER")))
+            file, "research", List.of("USER", "AUDITOR")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("文件不能为空");
     }
@@ -94,9 +95,29 @@ class DocumentServiceTest {
         );
 
         assertThatThrownBy(() -> documentService.uploadDocument(
-            file, "research", List.of("ADMIN", "USER")))
+            file, "research", List.of("USER", "AUDITOR")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("不支持的文件类型");
+    }
+
+    @Test
+    void uploadDocumentRejectsGlobalAdministratorBeforeStoringTheFile() {
+        DocumentService documentService = service();
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "policy.pdf",
+            "application/pdf",
+            "content".getBytes(StandardCharsets.UTF_8)
+        );
+
+        assertThatThrownBy(() -> documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("ADMIN");
+
+        verify(uploadPersistenceService, never())
+            .createPlaceholder(any(KnowledgeDocument.class));
+        verify(documentStorage, never()).put(any(), any(), anyLong(), any());
     }
 
     @Test
@@ -116,7 +137,7 @@ class DocumentServiceTest {
         );
 
         documentService.uploadDocument(
-            file, "research", List.of("ADMIN", "USER"));
+            file, "research", List.of("USER", "AUDITOR"));
 
         ArgumentCaptor<KnowledgeDocument> documentCaptor = ArgumentCaptor.forClass(KnowledgeDocument.class);
         verify(uploadPersistenceService).createPlaceholder(documentCaptor.capture());
@@ -134,7 +155,7 @@ class DocumentServiceTest {
             org.mockito.ArgumentMatchers.startsWith("rag/document/42/"),
             org.mockito.ArgumentMatchers.eq(
                 "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73"),
-            org.mockito.ArgumentMatchers.eq(List.of("ADMIN", "USER")));
+            org.mockito.ArgumentMatchers.eq(List.of("USER", "AUDITOR")));
 
     }
 
@@ -150,7 +171,7 @@ class DocumentServiceTest {
         );
 
         assertThatThrownBy(() -> documentService.uploadDocument(
-            file, "research", List.of("ADMIN", "USER")))
+            file, "research", List.of("USER", "AUDITOR")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("文件大小");
         verify(uploadPersistenceService, never())
@@ -173,7 +194,7 @@ class DocumentServiceTest {
         );
 
         assertThatThrownBy(() -> documentService.uploadDocument(
-            file, "research", List.of("ADMIN", "USER")))
+            file, "research", List.of("USER", "AUDITOR")))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("transaction failed");
         verify(documentStorage).delete(

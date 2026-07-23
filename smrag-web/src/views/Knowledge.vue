@@ -68,7 +68,11 @@
             <fieldset class="full-row">
               <legend>允许访问的角色</legend>
               <el-checkbox-group v-model="baseForm.roleIds" class="role-options">
-                <el-checkbox v-for="role in roles" :key="role.id" :value="role.id">
+                <el-checkbox
+                  v-for="role in configurableRoles"
+                  :key="role.id"
+                  :value="role.id"
+                >
                   {{ role.roleName }}（{{ role.roleCode }}）
                 </el-checkbox>
               </el-checkbox-group>
@@ -229,7 +233,8 @@
                       {{ row.accessible ? '可阅读' : '无阅读权限' }}
                     </el-tag>
                     <span>
-                      {{ (row.allowedRoles || []).map(role => role.roleName).join('、') || '未配置' }}
+                      {{ filterConfigurableAccessRoles(row.allowedRoles)
+                        .map(role => role.roleName).join('、') || '未配置' }}
                     </span>
                   </div>
                 </template>
@@ -312,6 +317,7 @@ import DocumentViewer from '@/components/DocumentViewer.vue'
 import { getRoles } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { filterConfigurableAccessRoles } from '@/constants/knowledgeBase'
 
 const authStore = useAuthStore()
 const knowledgeStore = useKnowledgeStore()
@@ -337,6 +343,9 @@ const moveDialog = ref(false)
 const movingDocument = ref(null)
 const moveTargetCode = ref('')
 const baseForm = reactive({ code: '', name: '', description: '', roleIds: [] })
+const configurableRoles = computed(() =>
+  filterConfigurableAccessRoles(roles.value)
+)
 
 const visibleBases = computed(() =>
   authStore.isAdmin ? adminKnowledgeBases.value : knowledgeBases.value
@@ -485,7 +494,8 @@ const handleUpload = async () => {
 
 const startPermissionEdit = document => {
   editingDocument.value = document
-  editingRoleCodes.value = (document.allowedRoles || []).map(role => role.roleCode)
+  editingRoleCodes.value = filterConfigurableAccessRoles(document.allowedRoles)
+    .map(role => role.roleCode)
   permissionDialog.value = true
 }
 

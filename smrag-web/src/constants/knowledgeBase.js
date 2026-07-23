@@ -1,4 +1,12 @@
 export const MAX_CHAT_KNOWLEDGE_BASES = 5
+export const GLOBAL_ADMIN_ROLE_CODE = 'ADMIN'
+
+export function filterConfigurableAccessRoles(roles) {
+  if (!Array.isArray(roles)) return []
+  return roles.filter(role =>
+    String(role?.roleCode || '').trim().toUpperCase() !== GLOBAL_ADMIN_ROLE_CODE
+  )
+}
 
 export function normalizeKnowledgeBaseCode(value) {
   return String(value ?? '').trim().toLowerCase()
@@ -17,7 +25,7 @@ export function normalizeKnowledgeBases(value) {
       name: String(item?.name ?? '').trim() || code,
       description: String(item?.description ?? '').trim(),
       status: item?.status || 'ACTIVE',
-      roles: Array.isArray(item?.roles) ? item.roles : []
+      roles: filterConfigurableAccessRoles(item?.roles)
     }]
   })
 }

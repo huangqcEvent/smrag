@@ -213,7 +213,10 @@ public class KnowledgeBaseService {
     }
 
     public boolean isGlobalAdmin(Long userId) {
-        return userId != null && userRoleMapper.userHasRole(userId, "ADMIN");
+        return userId != null && userRoleMapper.userHasRole(
+            userId,
+            PermissionDecisionService.GLOBAL_ADMIN_ROLE_CODE
+        );
     }
 
     public List<Long> roleIds(Long knowledgeBaseId) {
@@ -278,6 +281,14 @@ public class KnowledgeBaseService {
             .ifPresent(id -> {
                 throw new IllegalArgumentException("角色不存在: " + id);
             });
+        if (roles.stream().anyMatch(role ->
+            PermissionDecisionService.GLOBAL_ADMIN_ROLE_CODE.equals(
+                role.getRoleCode()
+            ))) {
+            throw new IllegalArgumentException(
+                "ADMIN 是全局管理员角色，不能加入知识库访问权限"
+            );
+        }
     }
 
     private void insertRoles(
@@ -325,6 +336,10 @@ public class KnowledgeBaseService {
         List<RoleVO> roles = roleIds.stream()
             .map(rolesById::get)
             .filter(java.util.Objects::nonNull)
+            .filter(role ->
+                !PermissionDecisionService.GLOBAL_ADMIN_ROLE_CODE.equals(
+                    role.getRoleCode()
+                ))
             .map(role -> new RoleVO(
                 role.getId(),
                 role.getRoleCode(),

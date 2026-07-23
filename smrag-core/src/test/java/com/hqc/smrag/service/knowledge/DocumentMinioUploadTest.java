@@ -69,7 +69,7 @@ class DocumentMinioUploadTest {
             return 42L;
         });
 
-        service().uploadDocument(file(), "default", List.of("ADMIN"));
+        service().uploadDocument(file(), "default", List.of("USER"));
 
         var key = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(storage).put(key.capture(), any(), eq(7L), eq("application/pdf"));
@@ -77,7 +77,7 @@ class DocumentMinioUploadTest {
         verify(persistence).completeUpload(
             eq(42L), eq(key.getValue()),
             eq("ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73"),
-            eq(List.of("ADMIN")));
+            eq(List.of("USER")));
     }
 
     @Test
@@ -88,10 +88,10 @@ class DocumentMinioUploadTest {
             return 42L;
         });
         doThrow(new IllegalStateException("transaction failed"))
-            .when(persistence).completeUpload(eq(42L), any(), any(), eq(List.of("ADMIN")));
+            .when(persistence).completeUpload(eq(42L), any(), any(), eq(List.of("USER")));
 
         assertThatThrownBy(() ->
-            service().uploadDocument(file(), "default", List.of("ADMIN")))
+            service().uploadDocument(file(), "default", List.of("USER")))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("transaction failed");
 

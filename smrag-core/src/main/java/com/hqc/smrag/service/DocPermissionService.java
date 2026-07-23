@@ -43,6 +43,11 @@ public class DocPermissionService {
         if (codes.isEmpty()) {
             throw new IllegalArgumentException("文档至少需要一个可读角色");
         }
+        if (codes.contains(PermissionDecisionService.GLOBAL_ADMIN_ROLE_CODE)) {
+            throw new IllegalArgumentException(
+                "ADMIN 是全局管理员角色，不能加入文档访问权限"
+            );
+        }
         List<SysRole> roles = sysRoleMapper.selectByCodesForKeyShare(codes);
         Map<String, SysRole> rolesByCode = roles.stream().collect(Collectors.toMap(
             SysRole::getRoleCode, Function.identity()));
@@ -68,18 +73,6 @@ public class DocPermissionService {
                 .set(KnowledgeDocument::getAclVersion, aclVersion)
                 .set(KnowledgeDocument::getUpdateTime, LocalDateTime.now()));
         updateVectorAcl(documentId, aclVersion);
-    }
-
-    @Transactional
-    public void setDefaultPermissions(Long documentId) {
-        SetDocPermissionRequest request = new SetDocPermissionRequest();
-        request.setPermissions(List.of("ADMIN", "USER").stream().map(code -> {
-            SetDocPermissionRequest.RolePermission permission =
-                new SetDocPermissionRequest.RolePermission();
-            permission.setRoleCode(code);
-            return permission;
-        }).toList());
-        setDocumentPermissions(documentId, request);
     }
 
     public List<Long> getAccessibleDocIds(Long userId, Long knowledgeBaseId) {

@@ -159,6 +159,13 @@ public class DocumentService {
         if (normalizedRoles.isEmpty()) {
             throw new IllegalArgumentException("文档至少需要一个可读角色");
         }
+        if (normalizedRoles.contains(
+            PermissionDecisionService.GLOBAL_ADMIN_ROLE_CODE
+        )) {
+            throw new IllegalArgumentException(
+                "ADMIN 是全局管理员角色，不能加入文档访问权限"
+            );
+        }
         Long normalizedKnowledgeBaseId =
             knowledgeBaseService.requireActive(knowledgeBaseId).getId();
         String fileName = sanitizeFileName(file.getOriginalFilename());
@@ -185,7 +192,6 @@ public class DocumentService {
             + UUID.randomUUID() + "-" + fileName;
         boolean objectStored = false;
         try {
-            // 设置默认权限（ADMIN 和 USER 都可读）
             String checksum = checksum(file);
             try (InputStream input = file.getInputStream()) {
                 documentStorage.put(

@@ -21,6 +21,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PermissionDecisionService {
 
+    public static final String GLOBAL_ADMIN_ROLE_CODE = "ADMIN";
+
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeBaseRoleMapper knowledgeBaseRoleMapper;
     private final KnowledgeDocumentMapper documentMapper;
@@ -28,7 +30,8 @@ public class PermissionDecisionService {
     private final SysUserRoleMapper userRoleMapper;
 
     public boolean isGlobalAdmin(Long userId) {
-        return userId != null && userRoleMapper.userHasRole(userId, "ADMIN");
+        return userId != null
+            && userRoleMapper.userHasRole(userId, GLOBAL_ADMIN_ROLE_CODE);
     }
 
     public boolean canAccessKnowledgeBase(Long userId, Long knowledgeBaseId) {

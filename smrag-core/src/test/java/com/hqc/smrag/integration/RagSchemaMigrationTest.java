@@ -40,6 +40,15 @@ class RagSchemaMigrationTest {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
+                .target("9")
+                .load()
+                .migrate();
+            long[] legacyAclIds = seedLegacyGlobalAdminAcl(postgres);
+
+            Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
                 .load()
                 .migrate();
 
@@ -64,19 +73,115 @@ class RagSchemaMigrationTest {
             assertIndexExists(postgres, "idx_knowledge_base_role_role_base");
             assertIndexExists(postgres, "idx_rag_vector_store_acl");
             assertForeignKeyExists(postgres, "knowledge_document", "fk_knowledge_document_base");
+            assertLegacyGlobalAdminAclRemoved(postgres, legacyAclIds);
+            deleteLegacyAclFixture(postgres, legacyAclIds);
             assertThat(countRows(postgres, "knowledge_base")).isZero();
             assertAuthorizedRetrievalUsesCurrentRelationalAcl(postgres);
         }
     }
 
+    private long[] seedLegacyGlobalAdminAcl(PostgreSQLContainer<?> postgres) {
+        JdbcTemplate jdbc = jdbc(postgres);
+        Long knowledgeBaseId = jdbc.queryForObject("""
+            INSERT INTO knowledge_base(code, name, status, created_by)
+            VALUES ('legacy-admin-acl', 'Legacy ACL', 'ACTIVE', 1)
+            RETURNING id
+            """, Long.class);
+        jdbc.update("""
+            INSERT INTO knowledge_base_role(knowledge_base_id, role_id, created_by)
+            VALUES (?, 1, 1), (?, 2, 1)
+            """, knowledgeBaseId, knowledgeBaseId);
+        Long documentId = jdbc.queryForObject("""
+            INSERT INTO knowledge_document(
+                name,
+                file_type,
+                status,
+                acl_version,
+                knowledge_base_id
+            )
+            VALUES ('legacy.pdf', 'PDF', 'COMPLETED', 4, ?)
+            RETURNING id
+            """, Long.class, knowledgeBaseId);
+        jdbc.update("""
+            INSERT INTO doc_permission(document_id, role_id, can_read)
+            VALUES (?, 1, true), (?, 2, true)
+            """, documentId, documentId);
+        float[] embedding = new float[1536];
+        embedding[0] = 1.0F;
+        jdbc.update("""
+            INSERT INTO rag_vector_store(content, metadata, embedding)
+            VALUES (
+                'legacy evidence',
+                CAST(? AS json),
+                CAST(? AS vector)
+            )
+            """, """
+            {"knowledgeBaseId":%d,"documentId":%d,"documentAclVersion":4,"documentVersion":1}
+            """.formatted(knowledgeBaseId, documentId), vectorLiteral(embedding));
+        Long adminOnlyBaseId = jdbc.queryForObject("""
+            INSERT INTO knowledge_base(code, name, status, created_by)
+            VALUES ('admin-only-acl', 'Admin only ACL', 'ACTIVE', 1)
+            RETURNING id
+            """, Long.class);
+        jdbc.update("""
+            INSERT INTO knowledge_base_role(knowledge_base_id, role_id, created_by)
+            VALUES (?, 1, 1)
+            """, adminOnlyBaseId);
+        return new long[] { knowledgeBaseId, documentId, adminOnlyBaseId };
+    }
+
+    private void assertLegacyGlobalAdminAclRemoved(
+        PostgreSQLContainer<?> postgres,
+        long[] ids
+    ) {
+        JdbcTemplate jdbc = jdbc(postgres);
+        assertThat(jdbc.queryForObject("""
+            SELECT COUNT(*)
+            FROM knowledge_base_role kbr
+            INNER JOIN sys_role r ON r.id = kbr.role_id
+            WHERE kbr.knowledge_base_id = ? AND r.role_code = 'ADMIN'
+            """, Long.class, ids[0])).isZero();
+        assertThat(jdbc.queryForObject("""
+            SELECT COUNT(*)
+            FROM doc_permission dp
+            INNER JOIN sys_role r ON r.id = dp.role_id
+            WHERE dp.document_id = ? AND r.role_code = 'ADMIN'
+            """, Long.class, ids[1])).isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT acl_version FROM knowledge_document WHERE id = ?",
+            Integer.class,
+            ids[1]
+        )).isEqualTo(5);
+        assertThat(jdbc.queryForObject("""
+            SELECT (metadata->>'documentAclVersion')::INTEGER
+            FROM rag_vector_store
+            WHERE document_id = ?
+            """, Integer.class, ids[1])).isEqualTo(5);
+        assertThat(jdbc.queryForObject(
+            "SELECT status FROM knowledge_base WHERE id = ?",
+            String.class,
+            ids[2]
+        )).isEqualTo("DISABLED");
+    }
+
+    private void deleteLegacyAclFixture(
+        PostgreSQLContainer<?> postgres,
+        long[] ids
+    ) {
+        JdbcTemplate jdbc = jdbc(postgres);
+        jdbc.update("DELETE FROM rag_vector_store WHERE document_id = ?", ids[1]);
+        jdbc.update("DELETE FROM knowledge_document WHERE id = ?", ids[1]);
+        jdbc.update(
+            "DELETE FROM knowledge_base WHERE id IN (?, ?)",
+            ids[0],
+            ids[2]
+        );
+    }
+
     private void assertAuthorizedRetrievalUsesCurrentRelationalAcl(
         PostgreSQLContainer<?> postgres
     ) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(
-            postgres.getJdbcUrl(),
-            postgres.getUsername(),
-            postgres.getPassword()
-        );
+        DriverManagerDataSource dataSource = dataSource(postgres);
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         Long userId = jdbc.queryForObject("""
             INSERT INTO sys_user(username, password_hash, nickname, status)
@@ -176,6 +281,20 @@ class RagSchemaMigrationTest {
             0.1,
             5
         )).isEmpty();
+    }
+
+    private JdbcTemplate jdbc(PostgreSQLContainer<?> postgres) {
+        return new JdbcTemplate(dataSource(postgres));
+    }
+
+    private DriverManagerDataSource dataSource(
+        PostgreSQLContainer<?> postgres
+    ) {
+        return new DriverManagerDataSource(
+            postgres.getJdbcUrl(),
+            postgres.getUsername(),
+            postgres.getPassword()
+        );
     }
 
     private String vectorLiteral(float[] embedding) {

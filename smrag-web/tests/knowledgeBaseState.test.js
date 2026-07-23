@@ -10,6 +10,7 @@ import {
   selectKnowledgeBaseCode,
   validateKnowledgeBaseSelection
 } from '../src/constants/knowledgeBase.js'
+import * as knowledgeBasePolicy from '../src/constants/knowledgeBase.js'
 import { resetKnowledgeAccountState } from '../src/stores/knowledgeAccountState.js'
 
 test('keeps an empty server response empty without inventing a default base', () => {
@@ -77,4 +78,19 @@ test('clears all account-scoped knowledge values', () => {
     documentRequestEpoch: 5,
     adminCatalogRequested: false
   })
+})
+
+test('excludes the global administrator from configurable access roles', () => {
+  assert.equal(
+    typeof knowledgeBasePolicy.filterConfigurableAccessRoles,
+    'function'
+  )
+  assert.deepEqual(
+    knowledgeBasePolicy.filterConfigurableAccessRoles([
+      { id: 1, roleCode: 'ADMIN' },
+      { id: 2, roleCode: 'USER' },
+      { id: 3, roleCode: 'AUDITOR' }
+    ]).map(role => role.roleCode),
+    ['USER', 'AUDITOR']
+  )
 })

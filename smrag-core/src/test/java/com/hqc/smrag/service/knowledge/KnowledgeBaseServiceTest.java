@@ -42,6 +42,7 @@ class KnowledgeBaseServiceTest {
         Fixture fixture = new Fixture();
         SysRole role = new SysRole();
         role.setId(2L);
+        role.setRoleCode("USER");
         when(fixture.roleMapper.selectBatchIds(any()))
             .thenReturn(List.of(role));
         when(fixture.baseMapper.insert(
@@ -66,6 +67,28 @@ class KnowledgeBaseServiceTest {
                     && relation.getRoleId().equals(2L)
             )
         );
+    }
+
+    @Test
+    void rejectsGlobalAdministratorAsAKnowledgeBaseAclRole() {
+        Fixture fixture = new Fixture();
+        SysRole role = new SysRole();
+        role.setId(1L);
+        role.setRoleCode("ADMIN");
+        when(fixture.roleMapper.selectBatchIds(any())).thenReturn(List.of(role));
+
+        assertThatThrownBy(() -> fixture.service.create(
+            new CreateKnowledgeBaseRequest(
+                "research",
+                "投研知识库",
+                "研究资料",
+                List.of(1L)
+            ),
+            1L
+        )).isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("ADMIN");
+
+        verify(fixture.baseMapper, never()).insert(any(KnowledgeBase.class));
     }
 
     @Test

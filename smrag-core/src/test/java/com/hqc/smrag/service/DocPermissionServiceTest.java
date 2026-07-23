@@ -53,6 +53,19 @@ class DocPermissionServiceTest {
     }
 
     @Test
+    void rejectsGlobalAdministratorAsADocumentAclRole() {
+        Fixture fixture = new Fixture();
+
+        assertThatThrownBy(() -> fixture.service.setDocumentPermissions(
+            7L, request("ADMIN", "USER")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("ADMIN");
+
+        verify(fixture.roleMapper, never()).selectByCodesForKeyShare(any());
+        verify(fixture.permissionMapper, never()).delete(any());
+    }
+
+    @Test
     void rejectsRolesOutsideKnowledgeBaseBeforeReplacingGrants() {
         Fixture fixture = new Fixture();
         when(fixture.roleMapper.selectByCodesForKeyShare(any()))
