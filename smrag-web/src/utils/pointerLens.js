@@ -6,6 +6,17 @@ export function canUsePointerLens({
   return canHover && hasFinePointer && !reducedMotion
 }
 
+export function isMousePointer(event) {
+  return event?.pointerType === 'mouse'
+}
+
+export function toLocalPointerPosition({ clientX, clientY }, { left, top }) {
+  return {
+    x: clientX - left,
+    y: clientY - top
+  }
+}
+
 export function createPointerLensController({
   requestFrame = callback => globalThis.requestAnimationFrame(callback),
   cancelFrame = frameId => globalThis.cancelAnimationFrame(frameId),

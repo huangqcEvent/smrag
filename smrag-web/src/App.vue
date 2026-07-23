@@ -1,9 +1,12 @@
 <template>
-  <div class="app-shell">
-    <header class="app-header">
-      <button class="brand" type="button" aria-label="私募AI专家" @click="goHome">
-        <span class="brand-mark">S</span>
-        <span>私募AI专家</span>
+  <div
+    class="app-shell"
+    :class="{ 'is-public-page': route.meta.public }"
+  >
+    <header v-if="!route.meta.public" class="app-header">
+      <button class="brand" type="button" aria-label="基金智库" @click="goHome">
+        <span class="brand-mark">基</span>
+        <span>基金智库</span>
       </button>
 
       <nav aria-label="主导航">
@@ -69,6 +72,14 @@ function handleLogout() {
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr);
   background: var(--bg-primary);
+}
+
+.app-shell.is-public-page {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.app-shell.is-public-page .app-main {
+  overflow: auto;
 }
 
 .app-header {

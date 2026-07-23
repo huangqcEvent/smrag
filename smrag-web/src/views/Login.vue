@@ -7,8 +7,7 @@
     @pointerleave="handlePointerLeave"
   >
     <LoginScene
-      language="zh"
-      interactive
+      :lens-active="lensActive"
       :username="form.username"
       :password="form.password"
       :show-password="showPassword"
@@ -19,17 +18,6 @@
       @toggle-password="showPassword = !showPassword"
       @focus-field="activeField = $event"
       @submit="handleLogin"
-    />
-
-    <LoginScene
-      class="login-english-layer"
-      language="en"
-      :interactive="false"
-      :username="form.username"
-      :password="form.password"
-      :show-password="showPassword"
-      :loading="loading"
-      :active-field="activeField"
     />
   </div>
 </template>
@@ -43,7 +31,9 @@ import { useAuthStore } from '@/stores/auth'
 import { notifyError } from '@/utils/errorFeedback'
 import {
   canUsePointerLens,
-  createPointerLensController
+  createPointerLensController,
+  isMousePointer,
+  toLocalPointerPosition
 } from '@/utils/pointerLens'
 
 const router = useRouter()
@@ -51,6 +41,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const loginPage = ref(null)
+const lensActive = ref(false)
 const loading = ref(false)
 const showPassword = ref(false)
 const activeField = ref('')
@@ -61,47 +52,80 @@ const form = reactive({
 })
 
 let lensController = null
+let lensMediaQueries = []
 
 const setLensPosition = (x, y) => {
-  loginPage.value?.style.setProperty('--lens-x', `${x}px`)
-  loginPage.value?.style.setProperty('--lens-y', `${y}px`)
+  const page = loginPage.value
+  if (!page) return
+  const position = toLocalPointerPosition(
+    { clientX: x, clientY: y },
+    page.getBoundingClientRect()
+  )
+  page.style.setProperty('--lens-x', `${position.x}px`)
+  page.style.setProperty('--lens-y', `${position.y}px`)
 }
 
 const handlePointerEnter = event => {
-  if (!lensController) return
+  if (!lensController || !isMousePointer(event)) return
   setLensPosition(event.clientX, event.clientY)
   lensController.enter(event)
 }
 
 const handlePointerMove = event => {
+  if (!isMousePointer(event)) return
   lensController?.move(event)
 }
 
-const handlePointerLeave = () => {
+const handlePointerLeave = event => {
+  if (!isMousePointer(event)) return
   lensController?.leave()
 }
 
-onMounted(() => {
-  const hover = window.matchMedia('(hover: hover)')
-  const finePointer = window.matchMedia('(pointer: fine)')
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+const disablePointerLens = () => {
+  lensController?.destroy()
+  lensController = null
+  lensActive.value = false
+}
 
-  if (!canUsePointerLens({
+const updateLensAvailability = () => {
+  const [hover, finePointer, reducedMotion] = lensMediaQueries
+  const enabled = hover && canUsePointerLens({
     canHover: hover.matches,
     hasFinePointer: finePointer.matches,
     reducedMotion: reducedMotion.matches
-  })) return
+  })
 
+  if (!enabled) {
+    disablePointerLens()
+    return
+  }
+  if (lensController) return
   lensController = createPointerLensController({
     onPosition: setLensPosition,
     onActive(active) {
-      loginPage.value?.classList.toggle('is-lens-active', active)
+      lensActive.value = active
     }
   })
-  loginPage.value?.classList.add('has-pointer-lens')
+}
+
+onMounted(() => {
+  lensMediaQueries = [
+    window.matchMedia('(any-hover: hover)'),
+    window.matchMedia('(any-pointer: fine)'),
+    window.matchMedia('(prefers-reduced-motion: reduce)')
+  ]
+  lensMediaQueries.forEach(query => {
+    query.addEventListener('change', updateLensAvailability)
+  })
+  updateLensAvailability()
 })
 
-onBeforeUnmount(() => lensController?.destroy())
+onBeforeUnmount(() => {
+  lensMediaQueries.forEach(query => {
+    query.removeEventListener('change', updateLensAvailability)
+  })
+  disablePointerLens()
+})
 
 async function handleLogin() {
   if (!form.username || !form.password) {
@@ -129,33 +153,15 @@ async function handleLogin() {
   --lens-y: 50vh;
   --lens-radius: clamp(10.625rem, 16vw, 14.375rem);
   position: relative;
-  min-height: 100vh;
+  min-height: max(100vh, 44rem);
+  min-height: max(100dvh, 44rem);
   overflow: hidden;
-  background: oklch(0.975 0.006 165);
-  isolation: isolate;
+  background: oklch(0.992 0.002 165);
 }
 
-.login-english-layer {
-  z-index: 4;
-  pointer-events: none;
-  clip-path: circle(0 at var(--lens-x) var(--lens-y));
-  transition: clip-path 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: clip-path;
-}
-
-.has-pointer-lens.is-lens-active .login-english-layer {
-  clip-path: circle(var(--lens-radius) at var(--lens-x) var(--lens-y));
-}
-
-@media (hover: none), (pointer: coarse), (max-width: 720px) {
-  .login-english-layer {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .login-english-layer {
-    display: none;
+@media (max-width: 900px) {
+  .login-page {
+    min-height: 52rem;
   }
 }
 </style>

@@ -56,7 +56,7 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   // 设置页面标题
-  document.title = `${to.meta.title || '私募AI专家'} | 私募AI专家`
+  document.title = `${to.meta.title || '基金智库'} | 基金智库`
 
   // 公开页面直接放行
   if (to.meta.public) {

@@ -2,7 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   canUsePointerLens,
-  createPointerLensController
+  createPointerLensController,
+  isMousePointer,
+  toLocalPointerPosition
 } from '../src/utils/pointerLens.js'
 
 test('only enables the lens for a fine hover pointer without reduced motion', () => {
@@ -26,6 +28,23 @@ test('only enables the lens for a fine hover pointer without reduced motion', ()
     hasFinePointer: true,
     reducedMotion: true
   }), false)
+})
+
+test('only accepts mouse pointer events on hybrid devices', () => {
+  assert.equal(isMousePointer({ pointerType: 'mouse' }), true)
+  assert.equal(isMousePointer({ pointerType: 'touch' }), false)
+  assert.equal(isMousePointer({ pointerType: 'pen' }), false)
+  assert.equal(isMousePointer({}), false)
+})
+
+test('converts viewport pointer coordinates after the page scrolls', () => {
+  assert.deepEqual(
+    toLocalPointerPosition(
+      { clientX: 320, clientY: 180 },
+      { left: 20, top: -120 }
+    ),
+    { x: 300, y: 300 }
+  )
 })
 
 test('coalesces pointer moves and uses the latest coordinates', () => {

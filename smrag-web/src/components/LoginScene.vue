@@ -1,34 +1,40 @@
 <template>
-  <div
-    class="login-scene"
-    :class="`login-scene--${language}`"
-    :data-language="language"
-    :aria-hidden="interactive ? undefined : 'true'"
-    :inert="!interactive"
-  >
+  <div class="login-scene">
     <div class="scene-pattern" aria-hidden="true">
-      <span v-for="item in patternItems" :key="item">SMRAG</span>
+      <span v-for="item in patternItems" :key="item">{{ copy.pattern }}</span>
     </div>
 
-    <header class="scene-brand">
-      <span class="brand-mark">S</span>
-      <span class="brand-name">{{ copy.brand }}</span>
-    </header>
-
-    <main class="scene-hero">
+    <section class="scene-hero">
       <p class="hero-eyebrow">{{ copy.eyebrow }}</p>
       <h1>{{ copy.title }}</h1>
       <p class="hero-supporting">{{ copy.supporting }}</p>
-    </main>
+    </section>
 
-    <component
-      :is="interactive ? 'form' : 'div'"
+    <div
+      class="login-hero-reveal"
+      :class="{ 'is-active': lensActive }"
+      aria-hidden="true"
+      inert
+    >
+      <div class="scene-pattern">
+        <span v-for="item in patternItems" :key="`reveal-${item}`">
+          {{ englishCopy.pattern }}
+        </span>
+      </div>
+      <section class="scene-hero">
+        <p class="hero-eyebrow">{{ englishCopy.eyebrow }}</p>
+        <h1>{{ englishCopy.title }}</h1>
+        <p class="hero-supporting">{{ englishCopy.supporting }}</p>
+      </section>
+    </div>
+
+    <form
       class="login-panel"
-      @submit.prevent="interactive && emit('submit')"
+      @submit.prevent="emit('submit')"
     >
       <div class="panel-heading">
         <div>
-          <p class="panel-kicker">SMRAG / ACCESS</p>
+          <p class="panel-kicker">{{ copy.panelKicker }}</p>
           <h2>{{ copy.panelTitle }}</h2>
         </div>
         <span class="panel-index">01</span>
@@ -36,7 +42,7 @@
       <p class="panel-hint">{{ copy.panelHint }}</p>
 
       <div class="form-field" :class="{ 'is-focused': activeField === 'username' }">
-        <label :for="interactive ? 'login-username' : undefined">
+        <label for="login-username">
           {{ copy.account }}
         </label>
         <div class="input-shell">
@@ -45,23 +51,21 @@
             <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
           </svg>
           <input
-            :id="interactive ? 'login-username' : undefined"
+            id="login-username"
             :value="username"
             type="text"
-            :name="interactive ? 'username' : undefined"
+            name="username"
             :placeholder="copy.accountPlaceholder"
-            :autocomplete="interactive ? 'username' : 'off'"
-            :readonly="!interactive"
-            :tabindex="interactive ? 0 : -1"
-            @input="interactive && emit('update:username', $event.target.value)"
-            @focus="interactive && emit('focus-field', 'username')"
-            @blur="interactive && emit('focus-field', '')"
+            autocomplete="username"
+            @input="emit('update:username', $event.target.value)"
+            @focus="emit('focus-field', 'username')"
+            @blur="emit('focus-field', '')"
           />
         </div>
       </div>
 
       <div class="form-field" :class="{ 'is-focused': activeField === 'password' }">
-        <label :for="interactive ? 'login-password' : undefined">
+        <label for="login-password">
           {{ copy.password }}
         </label>
         <div class="input-shell">
@@ -70,27 +74,21 @@
             <path d="M8 10V7a4 4 0 0 1 8 0v3" />
           </svg>
           <input
-            :id="interactive ? 'login-password' : undefined"
+            id="login-password"
             :value="password"
             :type="showPassword ? 'text' : 'password'"
-            :name="interactive ? 'password' : undefined"
+            name="password"
             :placeholder="copy.passwordPlaceholder"
-            :autocomplete="interactive ? 'current-password' : 'off'"
-            :readonly="!interactive"
-            :tabindex="interactive ? 0 : -1"
-            @input="interactive && emit('update:password', $event.target.value)"
-            @focus="interactive && emit('focus-field', 'password')"
-            @blur="interactive && emit('focus-field', '')"
+            autocomplete="current-password"
+            @input="emit('update:password', $event.target.value)"
+            @focus="emit('focus-field', 'password')"
+            @blur="emit('focus-field', '')"
           />
-          <component
-            :is="interactive ? 'button' : 'span'"
+          <button
             class="password-toggle"
-            :type="interactive ? 'button' : undefined"
-            :tabindex="interactive ? 0 : -1"
-            :aria-label="interactive
-              ? (showPassword ? copy.hidePassword : copy.showPassword)
-              : undefined"
-            @click="interactive && emit('toggle-password')"
+            type="button"
+            :aria-label="showPassword ? copy.hidePassword : copy.showPassword"
+            @click="emit('toggle-password')"
           >
             <svg v-if="showPassword" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
@@ -99,16 +97,14 @@
             <svg v-else viewBox="0 0 24 24" aria-hidden="true">
               <path d="m4 4 16 16M10.6 6.2A8.2 8.2 0 0 1 12 6c5.5 0 9 6 9 6a13.8 13.8 0 0 1-2.2 3M8.4 8.4C5.1 10 3 12 3 12s3.5 6 9 6c1 0 1.9-.2 2.7-.5" />
             </svg>
-          </component>
+          </button>
         </div>
       </div>
 
-      <component
-        :is="interactive ? 'button' : 'span'"
+      <button
         class="login-submit"
-        :type="interactive ? 'submit' : undefined"
-        :disabled="interactive ? loading : undefined"
-        :tabindex="interactive ? 0 : -1"
+        type="submit"
+        :disabled="loading"
       >
         <span v-if="loading" class="submit-loading" aria-hidden="true">
           <i></i><i></i><i></i>
@@ -117,27 +113,21 @@
         <svg v-if="!loading" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 12h14M14 7l5 5-5 5" />
         </svg>
-      </component>
+      </button>
 
       <p class="panel-footer">
         <span class="status-dot"></span>
         {{ copy.footer }}
       </p>
-    </component>
+    </form>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { LOGIN_COPY } from '@/constants/loginCopy'
 
-const props = defineProps({
-  language: {
-    type: String,
-    required: true,
-    validator: value => ['zh', 'en'].includes(value)
-  },
-  interactive: {
+defineProps({
+  lensActive: {
     type: Boolean,
     default: false
   },
@@ -171,18 +161,19 @@ const emit = defineEmits([
   'submit'
 ])
 
-const copy = computed(() => LOGIN_COPY[props.language])
+const copy = LOGIN_COPY.zh
+const englishCopy = LOGIN_COPY.en
 const patternItems = Array.from({ length: 30 }, (_, index) => index)
 </script>
 
 <style scoped>
 .login-scene {
-  --scene-bg: oklch(0.975 0.006 165);
-  --scene-surface: oklch(0.99 0.005 165);
-  --scene-text: oklch(0.19 0.018 170);
+  --scene-bg: oklch(0.992 0.002 165);
+  --scene-surface: oklch(0.985 0.003 165);
+  --scene-text: oklch(0.16 0.01 170);
   --scene-muted: oklch(0.48 0.018 170);
   --scene-line: oklch(0.83 0.012 165);
-  --scene-pattern: oklch(0.9 0.008 165 / 0.68);
+  --scene-pattern: oklch(0.92 0.004 165 / 0.72);
   --scene-accent: oklch(0.47 0.085 184);
   --scene-accent-hover: oklch(0.4 0.078 184);
   --scene-accent-text: oklch(0.975 0.006 165);
@@ -193,16 +184,25 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   background: var(--scene-bg);
 }
 
-.login-scene--en {
-  --scene-bg: oklch(0.155 0.015 170);
-  --scene-surface: oklch(0.2 0.018 170);
+.login-hero-reveal {
+  --scene-bg: oklch(0.13 0.008 170);
   --scene-text: oklch(0.965 0.008 165);
   --scene-muted: oklch(0.72 0.014 165);
-  --scene-line: oklch(0.34 0.018 170);
   --scene-pattern: oklch(0.29 0.015 170 / 0.72);
-  --scene-accent: oklch(0.77 0.09 178);
-  --scene-accent-hover: oklch(0.82 0.085 178);
-  --scene-accent-text: oklch(0.17 0.018 170);
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  color: var(--scene-text);
+  background: var(--scene-bg);
+  pointer-events: none;
+  clip-path: circle(0 at var(--lens-x) var(--lens-y));
+  transition: clip-path 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: clip-path;
+}
+
+.login-hero-reveal.is-active {
+  clip-path: circle(var(--lens-radius) at var(--lens-x) var(--lens-y));
 }
 
 .scene-pattern {
@@ -218,34 +218,6 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   font-weight: 760;
   letter-spacing: 0.24em;
   user-select: none;
-}
-
-.scene-brand {
-  position: absolute;
-  top: 2rem;
-  left: 2.5rem;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.brand-mark {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  place-items: center;
-  border-radius: 0.45rem;
-  color: var(--scene-accent-text);
-  background: var(--scene-accent);
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
-.brand-name {
-  font-size: 0.92rem;
-  font-weight: 720;
-  letter-spacing: 0.02em;
 }
 
 .scene-hero {
@@ -268,16 +240,16 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
 }
 
 .scene-hero h1 {
-  max-width: 13ch;
+  max-width: none;
   margin: 1rem 0 1.25rem;
   font-size: 4.75rem;
   font-weight: 850;
   line-height: 1.02;
   letter-spacing: -0.06em;
+  white-space: nowrap;
 }
 
-.login-scene--en .scene-hero h1 {
-  max-width: 12ch;
+.login-hero-reveal .scene-hero h1 {
   letter-spacing: -0.055em;
 }
 
@@ -290,7 +262,7 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   letter-spacing: 0.02em;
 }
 
-.login-scene--en .hero-supporting {
+.login-hero-reveal .hero-supporting {
   font-size: 0.82rem;
   font-weight: 680;
   letter-spacing: 0.12em;
@@ -298,21 +270,18 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
 
 .login-panel {
   position: absolute;
-  right: 5vw;
-  bottom: 6vh;
+  top: 50%;
+  right: clamp(2rem, 6vw, 7rem);
   z-index: 3;
   display: flex;
-  width: min(22.5rem, calc(100vw - 3rem));
+  width: min(26rem, calc(100vw - 3rem));
   flex-direction: column;
-  padding: 1.35rem 1.4rem 1.15rem;
+  padding: 1.75rem 1.8rem 1.45rem;
   border: 1px solid var(--scene-line);
   border-radius: 0.65rem;
   background: var(--scene-surface);
   box-shadow: 0 1rem 3rem oklch(0.16 0.02 170 / 0.09);
-}
-
-.login-scene--en .login-panel {
-  box-shadow: 0 1rem 3rem oklch(0.06 0.01 170 / 0.24);
+  transform: translateY(-50%);
 }
 
 .panel-heading {
@@ -357,7 +326,7 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
 .input-shell {
   position: relative;
   display: flex;
-  height: 2.75rem;
+  height: 3rem;
   align-items: center;
   border: 1px solid var(--scene-line);
   border-radius: 0.45rem;
@@ -440,7 +409,7 @@ button.password-toggle:focus-visible {
 .login-submit {
   display: flex;
   width: 100%;
-  height: 2.85rem;
+  height: 3.1rem;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
@@ -541,21 +510,45 @@ button.login-submit:disabled {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .scene-hero {
-    top: 35%;
-    width: 86vw;
+    left: 5vw;
+    width: 48vw;
   }
 
   .scene-hero h1 {
+    max-width: 11ch;
     font-size: 3.6rem;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 900px) {
+  .scene-hero {
+    top: 4rem;
+    left: 3rem;
+    width: calc(100vw - 6rem);
+    transform: none;
+  }
+
+  .scene-hero h1 {
+    max-width: none;
+    margin: 0.8rem 0 0.9rem;
+    font-size: 3rem;
+    white-space: nowrap;
+  }
+
+  .login-panel {
+    top: 21rem;
+    right: 50%;
+    width: min(26rem, calc(100vw - 3rem));
+    transform: translateX(50%);
   }
 }
 
 @media (max-width: 720px) {
-  .scene-brand {
-    top: 1.25rem;
-    left: 1.25rem;
+  .login-hero-reveal {
+    display: none;
   }
 
   .scene-pattern {
@@ -568,10 +561,9 @@ button.login-submit:disabled {
   }
 
   .scene-hero {
-    top: 7.2rem;
+    top: 3rem;
     left: 1.5rem;
     width: calc(100vw - 3rem);
-    transform: none;
   }
 
   .scene-hero h1 {
@@ -587,29 +579,17 @@ button.login-submit:disabled {
   }
 
   .login-panel {
-    right: 50%;
-    bottom: 1.2rem;
+    top: 17.5rem;
     width: calc(100vw - 2.5rem);
-    padding: 1.15rem 1.15rem 1rem;
-    transform: translateX(50%);
-  }
-}
-
-@media (max-height: 720px) and (min-width: 721px) {
-  .scene-hero {
-    top: 42%;
-  }
-
-  .scene-hero h1 {
-    font-size: 3.5rem;
-  }
-
-  .login-panel {
-    bottom: 1.5rem;
+    padding: 1.4rem 1.3rem 1.2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .login-hero-reveal {
+    display: none;
+  }
+
   .submit-loading i {
     animation: none;
   }
