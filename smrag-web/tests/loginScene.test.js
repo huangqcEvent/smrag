@@ -7,6 +7,10 @@ const sceneSource = readFileSync(
   new URL('../src/components/LoginScene.vue', import.meta.url),
   'utf8'
 )
+const loginSource = readFileSync(
+  new URL('../src/views/Login.vue', import.meta.url),
+  'utf8'
+)
 
 test('defines matching Chinese and English login copy', () => {
   assert.equal(LOGIN_COPY.zh.title, '你好，我是私募 AI 专家')
@@ -33,4 +37,18 @@ test('exposes one event boundary for the interactive login form', () => {
     assert.match(sceneSource, new RegExp(`'${eventName}'`))
   }
   assert.match(sceneSource, /@submit\.prevent="interactive && emit\('submit'\)"/)
+})
+
+test('renders one interactive Chinese scene and one English visual scene', () => {
+  assert.equal((loginSource.match(/<LoginScene/g) || []).length, 2)
+  assert.match(loginSource, /language="zh"/)
+  assert.match(loginSource, /language="en"/)
+  assert.match(loginSource, /:interactive="false"/)
+  assert.match(loginSource, /createPointerLensController/)
+})
+
+test('keeps the existing safe login behavior', () => {
+  assert.match(loginSource, /await authStore\.login/)
+  assert.match(loginSource, /notifyError\(error, '登录失败'\)/)
+  assert.match(loginSource, /route\.query\.redirect \|\| '\/chat'/)
 })
