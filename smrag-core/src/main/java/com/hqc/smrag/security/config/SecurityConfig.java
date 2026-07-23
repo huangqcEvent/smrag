@@ -2,6 +2,7 @@ package com.hqc.smrag.security.config;
 
 import com.hqc.smrag.security.JwtAuthenticationEntryPoint;
 import com.hqc.smrag.security.filter.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher;
 
 /**
  * Spring Security 配置
@@ -87,6 +89,10 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 // 配置请求授权
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                new DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                                new DispatcherTypeRequestMatcher(DispatcherType.ERROR)
+                        ).permitAll()
                         // 公开接口
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         // 静态资源
