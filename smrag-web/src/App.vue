@@ -4,9 +4,9 @@
     :class="{ 'is-public-page': route.meta.public }"
   >
     <header v-if="!route.meta.public" class="app-header">
-      <button class="brand" type="button" aria-label="基金智库" @click="goHome">
+      <button class="brand" type="button" aria-label="FundRAG" @click="goHome">
         <span class="brand-mark">基</span>
-        <span>基金智库</span>
+        <span>FundRAG</span>
       </button>
 
       <nav aria-label="主导航">

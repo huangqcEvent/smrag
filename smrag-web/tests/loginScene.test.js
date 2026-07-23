@@ -25,12 +25,13 @@ const indexSource = readFileSync(
 )
 
 test('defines Chinese form copy and English hero reveal copy', () => {
-  assert.equal(LOGIN_COPY.zh.brand, '基金智库')
-  assert.equal(LOGIN_COPY.zh.title, '你好，我是基金智库')
-  assert.equal(LOGIN_COPY.zh.pattern, '基金智库')
+  assert.equal(LOGIN_COPY.zh.brand, 'FundRAG')
+  assert.equal(LOGIN_COPY.zh.title, '你好，我是 FundRAG')
+  assert.equal(LOGIN_COPY.zh.pattern, 'FundRAG')
+  assert.equal(LOGIN_COPY.zh.supporting, '可溯源的基金知识助手')
   assert.equal(LOGIN_COPY.zh.submit, '进入系统')
-  assert.equal(LOGIN_COPY.en.title, "HELLO, I'M FUND INTELLIGENCE")
-  assert.equal(LOGIN_COPY.en.pattern, 'FUND INTEL')
+  assert.equal(LOGIN_COPY.en.title, "HELLO, I'M FUNDRAG")
+  assert.equal(LOGIN_COPY.en.pattern, 'FUNDRAG')
 })
 
 test('exposes one real login form event boundary', () => {
@@ -95,9 +96,9 @@ test('lets the public login route use a full and scrollable viewport', () => {
   assert.match(appSource, /\.app-shell\.is-public-page \.app-main\s*\{[\s\S]*overflow:\s*auto/)
 })
 
-test('uses the Fund Intelligence brand throughout the application shell', () => {
-  assert.match(appSource, /aria-label="基金智库"/)
-  assert.match(appSource, />基金智库</)
-  assert.match(routerSource, /\| 基金智库/)
-  assert.match(indexSource, /<title>基金智库<\/title>/)
+test('uses the FundRAG brand throughout the application shell', () => {
+  assert.match(appSource, /aria-label="FundRAG"/)
+  assert.match(appSource, />FundRAG</)
+  assert.match(routerSource, /\| FundRAG/)
+  assert.match(indexSource, /<title>FundRAG<\/title>/)
 })

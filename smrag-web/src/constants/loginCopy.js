@@ -1,11 +1,11 @@
 export const LOGIN_COPY = Object.freeze({
   zh: Object.freeze({
-    pattern: '基金智库',
-    brand: '基金智库',
+    pattern: 'FundRAG',
+    brand: 'FundRAG',
     eyebrow: '基金知识与研究工作台',
-    title: '你好，我是基金智库',
-    supporting: '从企业知识中，找到可信、可追溯的答案。',
-    panelKicker: '基金智库 / 访问入口',
+    title: '你好，我是 FundRAG',
+    supporting: '可溯源的基金知识助手',
+    panelKicker: 'FundRAG / 访问入口',
     panelTitle: '登录',
     panelHint: '使用你的内部账号继续',
     account: '账号',
@@ -19,9 +19,9 @@ export const LOGIN_COPY = Object.freeze({
     footer: '受权限保护的企业知识空间'
   }),
   en: Object.freeze({
-    pattern: 'FUND INTEL',
+    pattern: 'FUNDRAG',
     eyebrow: 'FUND KNOWLEDGE WORKSPACE',
-    title: "HELLO, I'M FUND INTELLIGENCE",
+    title: "HELLO, I'M FUNDRAG",
     supporting: 'TRUSTED ANSWERS, GROUNDED IN YOUR KNOWLEDGE.'
   })
 })
