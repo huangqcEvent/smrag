@@ -13,7 +13,10 @@ public interface VectorAclMapper {
             (
                 SELECT COALESCE(
                     jsonb_object_agg(entry.key, entry.value)
-                        FILTER (WHERE entry.key NOT LIKE 'aclRole\\_%' ESCAPE '\\'),
+                        FILTER (
+                            WHERE entry.key NOT LIKE 'aclRole\\_%' ESCAPE '\\'
+                              AND entry.key NOT LIKE 'aclRoleId\\_%' ESCAPE '\\'
+                        ),
                     '{}'::jsonb
                 )
                 FROM jsonb_each(metadata::jsonb) entry

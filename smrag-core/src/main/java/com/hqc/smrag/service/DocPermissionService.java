@@ -56,7 +56,10 @@ public class DocPermissionService {
                 .eq(KnowledgeDocument::getId, documentId)
                 .set(KnowledgeDocument::getAclVersion, aclVersion)
                 .set(KnowledgeDocument::getUpdateTime, LocalDateTime.now()));
-        updateVectorAcl(documentId, aclVersion, codes);
+        LinkedHashSet<Long> roleIds = codes.stream()
+            .map(code -> rolesByCode.get(code).getId())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        updateVectorAcl(documentId, aclVersion, roleIds);
     }
 
     @Transactional
@@ -75,13 +78,17 @@ public class DocPermissionService {
         return docPermissionMapper.selectAccessibleDocIdsByUserId(userId);
     }
 
+    public List<Long> getUserRoleIds(Long userId) {
+        return docPermissionMapper.selectRoleIdsByUserId(userId);
+    }
+
     @Transactional
     public void synchronizeVectorAcl(Long documentId) {
         KnowledgeDocument document = lockDocument(documentId);
-        LinkedHashSet<String> codes = new LinkedHashSet<>(
-            docPermissionMapper.selectReadableRoleCodesByDocumentId(documentId)
+        LinkedHashSet<Long> roleIds = new LinkedHashSet<>(
+            docPermissionMapper.selectReadableRoleIdsByDocumentId(documentId)
         );
-        if (codes.isEmpty()) {
+        if (roleIds.isEmpty()) {
             throw new IllegalStateException(
                 "Document " + documentId + " has no readable roles"
             );
@@ -89,7 +96,7 @@ public class DocPermissionService {
         updateVectorAcl(
             documentId,
             Objects.requireNonNullElse(document.getAclVersion(), 1),
-            codes
+            roleIds
         );
     }
 
@@ -124,12 +131,12 @@ public class DocPermissionService {
     private void updateVectorAcl(
         Long documentId,
         int aclVersion,
-        Set<String> codes
+        Set<Long> roleIds
     ) {
         Map<String, Object> acl = new LinkedHashMap<>();
         acl.put("aclVersion", aclVersion);
         acl.put("aclDenied", false);
-        codes.forEach(code -> acl.put("aclRole_" + code, true));
+        roleIds.forEach(roleId -> acl.put("aclRoleId_" + roleId, true));
         vectorAclMapper.updateDocumentAcl(documentId, JSONUtil.toJsonStr(acl));
     }
 }

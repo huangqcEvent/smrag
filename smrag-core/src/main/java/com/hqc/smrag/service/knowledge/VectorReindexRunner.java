@@ -103,15 +103,15 @@ public class VectorReindexRunner implements ApplicationRunner {
             }
             List<Document> vectors = List.of();
             try {
-                Set<String> readableRoleCodes = new LinkedHashSet<>(
-                    permissionMapper.selectReadableRoleCodesByDocumentId(document.getId())
+                Set<Long> readableRoleIds = new LinkedHashSet<>(
+                    permissionMapper.selectReadableRoleIdsByDocumentId(document.getId())
                 );
-                if (readableRoleCodes.isEmpty()) {
+                if (readableRoleIds.isEmpty()) {
                     throw new IllegalStateException(
                         "Document " + document.getId() + " has no readable roles"
                     );
                 }
-                vectors = toVectorDocuments(document, currentChunks, readableRoleCodes);
+                vectors = toVectorDocuments(document, currentChunks, readableRoleIds);
                 vectorStore.add(vectors);
                 permissionService.synchronizeVectorAcl(document.getId());
                 chunkMapper.updateById(currentChunks, BATCH_SIZE);
@@ -154,7 +154,7 @@ public class VectorReindexRunner implements ApplicationRunner {
     private List<Document> toVectorDocuments(
         KnowledgeDocument document,
         List<KnowledgeChunk> chunks,
-        Set<String> readableRoleCodes
+        Set<Long> readableRoleIds
     ) {
         int version = document.getVersion() == null ? 1 : document.getVersion();
         int aclVersion = document.getAclVersion() == null ? 1 : document.getAclVersion();
@@ -180,7 +180,7 @@ public class VectorReindexRunner implements ApplicationRunner {
             metadata.put("chunkIndex", chunkIndex);
             metadata.put("aclVersion", aclVersion);
             metadata.put("aclDenied", false);
-            readableRoleCodes.forEach(roleCode -> metadata.put("aclRole_" + roleCode, true));
+            readableRoleIds.forEach(roleId -> metadata.put("aclRoleId_" + roleId, true));
             putIfNotNull(metadata, "documentName", document.getName());
             putIfNotNull(metadata, "documentType", document.getFileType());
             putIfNotNull(metadata, "checksum", document.getChecksum());

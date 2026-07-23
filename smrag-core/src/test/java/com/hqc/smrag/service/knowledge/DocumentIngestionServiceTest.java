@@ -57,8 +57,8 @@ class DocumentIngestionServiceTest {
             return new DocumentSourceResolver.ResolvedSource(
                 Path.of(document.getFilePath()), false);
         });
-        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
-            .thenReturn(List.of("ADMIN", "USER"));
+        when(permissionMapper.selectReadableRoleIdsByDocumentId(42L))
+            .thenReturn(List.of(1L, 2L));
         ingestionService = new DocumentIngestionService(
             documentMapper,
             reader,
@@ -88,7 +88,7 @@ class DocumentIngestionServiceTest {
         when(chunker.chunk(
             sources, "default", 42L, "enterprise-rag.pdf", "PDF", 2,
             DocumentStatus.COMPLETED.name(), "checksum-42", 1,
-            java.util.Set.of("ADMIN", "USER"))).thenReturn(chunks);
+            java.util.Set.of(1L, 2L))).thenReturn(chunks);
 
         ingestionService.process(task(2));
 
@@ -115,7 +115,7 @@ class DocumentIngestionServiceTest {
             DocumentStatus.COMPLETED.name(),
             "checksum-42",
             1,
-            java.util.Set.of("ADMIN", "USER")
+            java.util.Set.of(1L, 2L)
         )).thenReturn(chunks);
 
         ingestionService.process(task);
@@ -147,7 +147,7 @@ class DocumentIngestionServiceTest {
             DocumentStatus.COMPLETED.name(),
             "checksum-42",
             1,
-            java.util.Set.of("ADMIN", "USER")
+            java.util.Set.of(1L, 2L)
         )).thenReturn(chunks);
         doThrow(failure).when(persistenceService)
             .saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);

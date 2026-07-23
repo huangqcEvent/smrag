@@ -47,15 +47,22 @@ public interface DocPermissionMapper extends BaseMapper<DocPermission> {
     );
 
     @Select("""
-        SELECT r.role_code
+        SELECT dp.role_id
         FROM doc_permission dp
-        INNER JOIN sys_role r ON r.id = dp.role_id
         WHERE dp.document_id = #{documentId} AND dp.can_read = true
-        ORDER BY r.role_code
+        ORDER BY dp.role_id
         """)
-    List<String> selectReadableRoleCodesByDocumentId(
+    List<Long> selectReadableRoleIdsByDocumentId(
         @Param("documentId") Long documentId
     );
+
+    @Select("""
+        SELECT role_id
+        FROM sys_user_role
+        WHERE user_id = #{userId}
+        ORDER BY role_id
+        """)
+    List<Long> selectRoleIdsByUserId(@Param("userId") Long userId);
 
     @Select("SELECT COUNT(*) FROM doc_permission WHERE role_id = #{roleId}")
     long countByRoleId(@Param("roleId") Long roleId);

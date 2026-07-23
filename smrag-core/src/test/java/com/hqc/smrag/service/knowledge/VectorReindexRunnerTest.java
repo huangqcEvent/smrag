@@ -56,8 +56,8 @@ class VectorReindexRunnerTest {
         KnowledgeChunk second = chunk(2L, 1, "second");
         when(documentMapper.selectList(any())).thenReturn(List.of(document));
         when(chunkMapper.selectList(any())).thenReturn(List.of(first, second));
-        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
-            .thenReturn(List.of("ADMIN", "AUDITOR"));
+        when(permissionMapper.selectReadableRoleIdsByDocumentId(42L))
+            .thenReturn(List.of(1L, 5L));
 
         runner.run(new DefaultApplicationArguments());
         runner.run(new DefaultApplicationArguments());
@@ -73,9 +73,9 @@ class VectorReindexRunnerTest {
             .allSatisfy(vector -> assertThat(vector.getMetadata())
                 .containsEntry("aclVersion", 3)
                 .containsEntry("aclDenied", false)
-                .containsEntry("aclRole_ADMIN", true)
-                .containsEntry("aclRole_AUDITOR", true)
-                .doesNotContainKey("aclRole_USER"));
+                .containsEntry("aclRoleId_1", true)
+                .containsEntry("aclRoleId_5", true)
+                .doesNotContainKeys("aclRole_1", "aclRole_5"));
         ArgumentCaptor<Collection> chunksCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(chunkMapper, times(2)).updateById(chunksCaptor.capture(), eq(500));
         assertThat(first.getVectorId()).isNotNull();
@@ -109,8 +109,8 @@ class VectorReindexRunnerTest {
         current.setDocumentVersion(2);
         when(documentMapper.selectList(any())).thenReturn(List.of(document));
         when(chunkMapper.selectList(any())).thenReturn(List.of(current));
-        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
-            .thenReturn(List.of("ADMIN"));
+        when(permissionMapper.selectReadableRoleIdsByDocumentId(42L))
+            .thenReturn(List.of(1L));
         doThrow(new IllegalStateException("backfill failed"))
             .when(chunkMapper).updateById(any(Collection.class), eq(500));
 

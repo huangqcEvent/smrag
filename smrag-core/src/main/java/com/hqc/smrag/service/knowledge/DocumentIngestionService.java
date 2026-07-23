@@ -112,9 +112,9 @@ public class DocumentIngestionService {
                 return;
             }
             List<Document> sources = readSources(document);
-            Set<String> roleCodes = new LinkedHashSet<>(
-                permissionMapper.selectReadableRoleCodesByDocumentId(document.getId()));
-            if (roleCodes.isEmpty()) {
+            Set<Long> roleIds = new LinkedHashSet<>(
+                permissionMapper.selectReadableRoleIdsByDocumentId(document.getId()));
+            if (roleIds.isEmpty()) {
                 throw new IllegalStateException(
                     "Document " + document.getId() + " has no readable roles");
             }
@@ -128,7 +128,7 @@ public class DocumentIngestionService {
                 DocumentStatus.COMPLETED.name(),
                 document.getChecksum(),
                 document.getAclVersion(),
-                roleCodes
+                roleIds
             );
             vectorWriteAttempted = true;
             vectorStore.add(chunks);

@@ -43,7 +43,7 @@ class DocumentChunkerTest {
             "PROCESSING",
             "checksum-42",
             3,
-            Set.of("ADMIN")
+            Set.of(1L)
         );
 
         assertThat(chunks).isNotEmpty();
@@ -59,7 +59,8 @@ class DocumentChunkerTest {
                 .containsEntry("checksum", "checksum-42")
                 .containsEntry("aclVersion", 3)
                 .containsEntry("aclDenied", false)
-                .containsEntry("aclRole_ADMIN", true)
+                .containsEntry("aclRoleId_1", true)
+                .doesNotContainKey("aclRole_1")
                 .containsKey("chunkIndex");
         });
         assertThat(chunks)
@@ -75,7 +76,7 @@ class DocumentChunkerTest {
             "PROCESSING",
             "checksum-42",
             3,
-            Set.of("ADMIN")
+            Set.of(1L)
         );
         assertThat(repeated).extracting(Document::getId)
             .containsExactlyElementsOf(chunks.stream().map(Document::getId).toList());
@@ -93,14 +94,14 @@ class DocumentChunkerTest {
         List<Document> chunks = chunker.chunk(
             List.of(new Document("permission aware knowledge content")),
             "default", 42L, "manual.txt", "TXT", 1, "COMPLETED",
-            "checksum", 3, Set.of("ADMIN", "AUDITOR"));
+            "checksum", 3, Set.of(1L, 5L));
 
         assertThat(chunks).isNotEmpty().allSatisfy(chunk ->
             assertThat(chunk.getMetadata())
                 .containsEntry("aclVersion", 3)
                 .containsEntry("aclDenied", false)
-                .containsEntry("aclRole_ADMIN", true)
-                .containsEntry("aclRole_AUDITOR", true)
-                .doesNotContainKey("aclRole_USER"));
+                .containsEntry("aclRoleId_1", true)
+                .containsEntry("aclRoleId_5", true)
+                .doesNotContainKeys("aclRole_1", "aclRole_5"));
     }
 }

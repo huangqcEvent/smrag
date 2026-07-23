@@ -89,7 +89,7 @@ class DocPermissionServiceTest {
         DocPermissionService service = new DocPermissionService(
             permissionMapper, roleMapper, documentMapper, vectorAclMapper);
         when(roleMapper.selectByCodesForKeyShare(any()))
-            .thenReturn(List.of(role("USER"), role("AUDITOR")));
+            .thenReturn(List.of(role(1L, "USER"), role(5L, "AUDITOR")));
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(7L);
         document.setAclVersion(3);
@@ -102,9 +102,9 @@ class DocPermissionServiceTest {
         assertThat(metadataCaptor.getValue())
             .contains("\"aclVersion\":4")
             .contains("\"aclDenied\":false")
-            .contains("\"aclRole_USER\":true")
-            .contains("\"aclRole_AUDITOR\":true")
-            .doesNotContain("aclRole_ADMIN");
+            .contains("\"aclRoleId_1\":true")
+            .contains("\"aclRoleId_5\":true")
+            .doesNotContain("aclRole_USER", "aclRole_AUDITOR");
         InOrder order = inOrder(documentMapper, permissionMapper);
         order.verify(documentMapper).selectByIdForUpdate(7L);
         order.verify(permissionMapper).delete(any());
@@ -121,8 +121,8 @@ class DocPermissionServiceTest {
         document.setId(7L);
         document.setAclVersion(6);
         when(documentMapper.selectByIdForUpdate(7L)).thenReturn(document);
-        when(permissionMapper.selectReadableRoleCodesByDocumentId(7L))
-            .thenReturn(List.of("ADMIN"));
+        when(permissionMapper.selectReadableRoleIdsByDocumentId(7L))
+            .thenReturn(List.of(1L));
 
         service.synchronizeVectorAcl(7L);
 
@@ -131,7 +131,8 @@ class DocPermissionServiceTest {
         assertThat(metadataCaptor.getValue())
             .contains("\"aclVersion\":6")
             .contains("\"aclDenied\":false")
-            .contains("\"aclRole_ADMIN\":true");
+            .contains("\"aclRoleId_1\":true")
+            .doesNotContain("aclRole_1");
     }
 
     private SetDocPermissionRequest request(String... codes) {
@@ -147,8 +148,12 @@ class DocPermissionServiceTest {
     }
 
     private SysRole role(String code) {
+        return role(1L, code);
+    }
+
+    private SysRole role(Long id, String code) {
         SysRole role = new SysRole();
-        role.setId(1L);
+        role.setId(id);
         role.setRoleCode(code);
         return role;
     }

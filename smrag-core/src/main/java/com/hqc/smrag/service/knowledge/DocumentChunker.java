@@ -83,13 +83,13 @@ public class DocumentChunker {
         String documentStatus,
         String checksum,
         Integer aclVersion,
-        Set<String> roleCodes
+        Set<Long> roleIds
     ) {
         if (aclVersion == null) {
             throw new IllegalArgumentException("ACL version must not be null");
         }
-        if (roleCodes == null || roleCodes.isEmpty()) {
-            throw new IllegalArgumentException("ACL role codes must not be empty");
+        if (roleIds == null || roleIds.isEmpty()) {
+            throw new IllegalArgumentException("ACL role ids must not be empty");
         }
         List<Document> enrichedDocuments = sourceDocuments.stream()
             .map(source -> enrich(
@@ -102,7 +102,7 @@ public class DocumentChunker {
                 documentStatus,
                 checksum,
                 aclVersion,
-                roleCodes
+                roleIds
             ))
             .toList();
         List<Document> splitDocuments = splitter.apply(enrichedDocuments);
@@ -148,7 +148,7 @@ public class DocumentChunker {
         String documentStatus,
         String checksum,
         Integer aclVersion,
-        Set<String> roleCodes
+        Set<Long> roleIds
     ) {
         Map<String, Object> metadata = new HashMap<>(source.getMetadata());
         Object pageNumber = metadata.remove(PagePdfDocumentReader.METADATA_START_PAGE_NUMBER);
@@ -164,7 +164,7 @@ public class DocumentChunker {
         metadata.put("checksum", checksum);
         metadata.put("aclVersion", aclVersion);
         metadata.put("aclDenied", false);
-        roleCodes.forEach(role -> metadata.put("aclRole_" + role, true));
+        roleIds.forEach(roleId -> metadata.put("aclRoleId_" + roleId, true));
         return new Document(source.getText(), metadata);
     }
 }
