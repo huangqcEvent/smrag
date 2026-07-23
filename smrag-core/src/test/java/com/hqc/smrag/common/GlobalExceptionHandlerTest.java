@@ -2,11 +2,13 @@ package com.hqc.smrag.common;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import com.hqc.smrag.exception.DomainNotFoundException;
@@ -21,6 +23,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 class GlobalExceptionHandlerTest {
+
+    @Test
+    void ignoresClientDisconnectInsteadOfReportingServerFailure() throws Exception {
+        standaloneSetup(new PostOnlyController())
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build()
+            .perform(get("/test/disconnected"))
+            .andExpect(status().isOk());
+    }
 
     @Test
     void preservesMethodNotAllowedStatusForUnsupportedHttpMethods() throws Exception {
@@ -88,6 +99,11 @@ class GlobalExceptionHandlerTest {
     @RestController
     @RequestMapping("/test")
     static class PostOnlyController {
+
+        @GetMapping("/disconnected")
+        Result<Void> disconnected() throws AsyncRequestNotUsableException {
+            throw new AsyncRequestNotUsableException("Connection reset by peer");
+        }
 
         @PostMapping("/post-only")
         Result<Void> postOnly() {
