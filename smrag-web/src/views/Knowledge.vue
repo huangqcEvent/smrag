@@ -318,6 +318,7 @@ import { getRoles } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { filterConfigurableAccessRoles } from '@/constants/knowledgeBase'
+import { notifyError } from '@/utils/errorFeedback'
 
 const authStore = useAuthStore()
 const knowledgeStore = useKnowledgeStore()
@@ -372,8 +373,8 @@ onMounted(async () => {
     const results = await Promise.all(requests)
     if (authStore.isAdmin) roles.value = results.at(-1) || []
     if (knowledgeBaseCode.value) await knowledgeStore.fetchDocuments()
-  } catch {
-    ElMessage.error('知识库加载失败')
+  } catch (error) {
+    notifyError(error, '知识库加载失败')
   }
 })
 

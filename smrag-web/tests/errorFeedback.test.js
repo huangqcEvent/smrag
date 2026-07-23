@@ -56,6 +56,16 @@ test('uses stable status fallbacks when the server has no business message', () 
   }), '数据已发生变化，请刷新页面')
 })
 
+test('keeps a safe login failure instead of treating it as an expired session', () => {
+  assert.equal(toUserErrorMessage({
+    config: { skipAuthRedirect: true },
+    response: {
+      status: 401,
+      data: { message: '用户名或密码错误' }
+    }
+  }, '登录失败'), '用户名或密码错误')
+})
+
 test('treats cancellations and aborted requests as silent', () => {
   assert.equal(isSilentError('cancel'), true)
   assert.equal(isSilentError('close'), true)

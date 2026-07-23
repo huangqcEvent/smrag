@@ -94,6 +94,7 @@ import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { notifyError } from '@/utils/errorFeedback'
 
 const router = useRouter()
 const route = useRoute()
@@ -120,7 +121,7 @@ async function handleLogin() {
     const redirect = route.query.redirect || '/chat'
     router.push(redirect)
   } catch (error) {
-    ElMessage.error(error.message || '登录失败')
+    notifyError(error, '登录失败')
   } finally {
     loading.value = false
   }

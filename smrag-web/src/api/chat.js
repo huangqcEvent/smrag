@@ -1,5 +1,5 @@
-import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { notifyError } from '@/utils/errorFeedback'
 import { postChatStream } from './chatStream'
 
 // 聊天接口
@@ -7,7 +7,8 @@ export function chatAsk(data) {
   return request({
     url: '/chat/ask',
     method: 'post',
-    data
+    data,
+    errorMessage: '生成回答失败'
   })
 }
 
@@ -16,9 +17,7 @@ export async function chatStream(data, options = {}) {
   try {
     return await postChatStream(data, options)
   } catch (error) {
-    if (error?.name !== 'AbortError') {
-      ElMessage.error(error?.message || '请求失败')
-    }
+    notifyError(error, '生成回答失败')
     throw error
   }
 }
@@ -27,7 +26,8 @@ export async function chatStream(data, options = {}) {
 export function getChatHistory(sessionId) {
   return request({
     url: `/chat/history/${sessionId}`,
-    method: 'get'
+    method: 'get',
+    errorMessage: '加载会话记录失败'
   })
 }
 
@@ -35,6 +35,7 @@ export function getChatHistory(sessionId) {
 export function getUserSessions() {
   return request({
     url: '/chat/sessions',
-    method: 'get'
+    method: 'get',
+    errorMessage: '加载会话列表失败'
   })
 }

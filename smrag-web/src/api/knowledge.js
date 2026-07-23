@@ -16,7 +16,8 @@ export function uploadDocument(
     data: formData,
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    errorMessage: '上传文档失败'
   })
 }
 
@@ -25,7 +26,8 @@ export function getDocumentList(knowledgeBaseCode) {
   return request({
     url: '/knowledge/list',
     method: 'get',
-    params: { knowledgeBaseCode }
+    params: { knowledgeBaseCode },
+    errorMessage: '加载文档列表失败'
   })
 }
 
@@ -34,13 +36,19 @@ export function deleteDocument(id, knowledgeBaseCode) {
   return request({
     url: `/knowledge/${id}`,
     method: 'delete',
-    params: { knowledgeBaseCode }
+    params: { knowledgeBaseCode },
+    errorMessage: '删除文档失败'
   })
 }
 
 export function setDocumentPermissions(id, roleCodes) {
-  return request.post(`/documents/${id}/permissions`, {
-    permissions: roleCodes.map(roleCode => ({ roleCode, canRead: true }))
+  return request({
+    url: `/documents/${id}/permissions`,
+    method: 'post',
+    data: {
+      permissions: roleCodes.map(roleCode => ({ roleCode, canRead: true }))
+    },
+    errorMessage: '更新文档权限失败'
   })
 }
 
@@ -49,6 +57,7 @@ export function getDocumentFile(id) {
     url: `/knowledge/${id}/file`,
     method: 'get',
     responseType: 'blob',
-    timeout: 120000
+    timeout: 120000,
+    errorMessage: '读取文档失败'
   })
 }

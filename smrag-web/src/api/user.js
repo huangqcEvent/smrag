@@ -5,7 +5,11 @@ import request from '@/utils/request'
  * @returns {Promise<Array>} 用户列表
  */
 export function getUserList() {
-  return request.get('/users')
+  return request({
+    url: '/users',
+    method: 'get',
+    errorMessage: '加载用户列表失败'
+  })
 }
 
 /**
@@ -18,7 +22,12 @@ export function getUserList() {
  * @returns {Promise<number>} 用户ID
  */
 export function addUser(data) {
-  return request.post('/users', data)
+  return request({
+    url: '/users',
+    method: 'post',
+    data,
+    errorMessage: '添加用户失败'
+  })
 }
 
 /**
@@ -28,7 +37,12 @@ export function addUser(data) {
  * @returns {Promise<void>}
  */
 export function updateUserRole(userId, roleCode) {
-  return request.put(`/users/${userId}/roles`, { roleCode })
+  return request({
+    url: `/users/${userId}/roles`,
+    method: 'put',
+    data: { roleCode },
+    errorMessage: '修改角色失败'
+  })
 }
 
 /**
@@ -38,8 +52,12 @@ export function updateUserRole(userId, roleCode) {
  * @returns {Promise<void>}
  */
 export function resetPassword(userId, newPassword) {
-  return request.put(`/users/${userId}/password`, null, {
-    params: { newPassword }
+  return request({
+    url: `/users/${userId}/password`,
+    method: 'put',
+    data: null,
+    params: { newPassword },
+    errorMessage: '重置密码失败'
   })
 }
 
@@ -49,7 +67,11 @@ export function resetPassword(userId, newPassword) {
  * @returns {Promise<void>}
  */
 export function disableUser(userId) {
-  return request.put(`/users/${userId}/disable`)
+  return request({
+    url: `/users/${userId}/disable`,
+    method: 'put',
+    errorMessage: '禁用用户失败'
+  })
 }
 
 /**
@@ -58,5 +80,9 @@ export function disableUser(userId) {
  * @returns {Promise<void>}
  */
 export function enableUser(userId) {
-  return request.put(`/users/${userId}/enable`)
+  return request({
+    url: `/users/${userId}/enable`,
+    method: 'put',
+    errorMessage: '启用用户失败'
+  })
 }

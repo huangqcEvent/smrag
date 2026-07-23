@@ -70,7 +70,9 @@ export function toUserErrorMessage(
   if (isSilentError(error)) return ''
 
   const status = statusOf(error)
-  if (status === 401) return '登录已过期，请重新登录'
+  if (status === 401 && !error?.config?.skipAuthRedirect) {
+    return '登录已过期，请重新登录'
+  }
   if (isTimeout(error)) return '请求超时，请检查网络连接'
   if (isNetworkFailure(error)) return '网络连接异常，请检查网络'
 

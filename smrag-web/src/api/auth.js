@@ -8,7 +8,13 @@ import request from '@/utils/request'
  * @returns {Promise<Object>} 登录响应
  */
 export function login(data) {
-  return request.post('/auth/login', data)
+  return request({
+    url: '/auth/login',
+    method: 'post',
+    data,
+    skipAuthRedirect: true,
+    errorMessage: '登录失败'
+  })
 }
 
 /**
@@ -17,7 +23,12 @@ export function login(data) {
  * @returns {Promise<Object>} 登录响应
  */
 export function refreshToken(refreshToken) {
-  return request.post('/auth/refresh', { refreshToken })
+  return request({
+    url: '/auth/refresh',
+    method: 'post',
+    data: { refreshToken },
+    errorMessage: '刷新登录状态失败'
+  })
 }
 
 /**
@@ -25,7 +36,11 @@ export function refreshToken(refreshToken) {
  * @returns {Promise<Object>} 用户信息
  */
 export function getCurrentUser() {
-  return request.get('/auth/me')
+  return request({
+    url: '/auth/me',
+    method: 'get',
+    errorMessage: '加载用户信息失败'
+  })
 }
 
 /**
@@ -33,5 +48,9 @@ export function getCurrentUser() {
  * @returns {Promise<void>}
  */
 export function logout() {
-  return request.post('/auth/logout')
+  return request({
+    url: '/auth/logout',
+    method: 'post',
+    suppressError: true
+  })
 }

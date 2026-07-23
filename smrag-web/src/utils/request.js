@@ -42,7 +42,9 @@ request.interceptors.response.use(
         data: body
       }
       error.config = response.config
-      notifyError(error)
+      if (!response.config?.suppressError) {
+        notifyError(error, response.config?.errorMessage)
+      }
       return Promise.reject(error)
     }
     return body
@@ -50,16 +52,22 @@ request.interceptors.response.use(
   error => {
     // 401 未登录或 Token 过期
     if (error.response?.status === 401) {
-      const failedAuthorization = error.config?.headers?.Authorization
-      const currentToken = globalThis.localStorage?.getItem('accessToken')
-      if (failedAuthorization === `Bearer ${currentToken}`) {
-        const authStore = useAuthStore()
-        authStore.logout()
-        router.push('/login')
-        notifyError(error, '登录已过期，请重新登录')
+      if (error.config?.skipAuthRedirect) {
+        if (!error.config?.suppressError) {
+          notifyError(error, error.config?.errorMessage)
+        }
+      } else {
+        const failedAuthorization = error.config?.headers?.Authorization
+        const currentToken = globalThis.localStorage?.getItem('accessToken')
+        if (failedAuthorization === `Bearer ${currentToken}`) {
+          const authStore = useAuthStore()
+          authStore.logout()
+          router.push('/login')
+          notifyError(error, '登录已过期，请重新登录')
+        }
       }
-    } else {
-      notifyError(error)
+    } else if (!error.config?.suppressError) {
+      notifyError(error, error.config?.errorMessage)
     }
     return Promise.reject(error)
   }

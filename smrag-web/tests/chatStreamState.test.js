@@ -57,3 +57,16 @@ test('does not let stop or late deltas overwrite a terminal state', () => {
   assert.equal(message.state, 'done')
   assert.equal(message.answer, '完整回答')
 })
+
+test('does not expose a generic server error in the chat message', () => {
+  const message = createPendingChatMessage('问题', 'session-1')
+
+  applyChatStreamEvent(message, {
+    type: 'error',
+    code: 500,
+    message: '系统繁忙，请稍后重试'
+  })
+
+  assert.equal(message.error, '生成回答失败')
+  assert.equal(message.state, 'error')
+})

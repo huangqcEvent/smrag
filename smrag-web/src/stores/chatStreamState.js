@@ -1,3 +1,5 @@
+import { toUserErrorMessage } from '../utils/safeError.js'
+
 export function createPendingChatMessage(question, sessionId, createTime = new Date().toISOString()) {
   return {
     question,
@@ -55,7 +57,7 @@ export function applyChatStreamEvent(message, event) {
     case 'error':
       message.phase = 'ERROR'
       message.state = 'error'
-      message.error = event.message || '生成回答失败'
+      message.error = toUserErrorMessage(event, '生成回答失败')
       break
     case 'stopped':
       message.phase = 'STOPPED'

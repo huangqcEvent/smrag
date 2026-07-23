@@ -339,6 +339,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserList, addUser, updateUserRole, resetPassword, disableUser, enableUser } from '@/api/user'
 import { createRole, deleteRole, getRoles, updateRole } from '@/api/role'
+import { notifyError } from '@/utils/errorFeedback'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -377,7 +378,7 @@ async function loadUsers() {
   try {
     users.value = await getUserList()
   } catch (error) {
-    ElMessage.error('加载用户列表失败')
+    notifyError(error, '加载用户列表失败')
   } finally {
     loading.value = false
   }
@@ -400,7 +401,7 @@ async function handleCreateRole() {
     await loadRoles()
     ElMessage.success('角色已新增')
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.message || '新增角色失败')
+    notifyError(error, '新增角色失败')
   }
 }
 
@@ -413,7 +414,7 @@ async function handleEditRole(role) {
     await loadRoles()
     ElMessage.success('角色已更新')
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.message || '更新角色失败')
+    notifyError(error, '更新角色失败')
   }
 }
 
@@ -424,7 +425,7 @@ async function handleDeleteRole(role) {
     await loadRoles()
     ElMessage.success('角色已删除')
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.message || '删除角色失败')
+    notifyError(error, '删除角色失败')
   }
 }
 
@@ -451,7 +452,7 @@ async function handleAdd() {
     addDialogVisible.value = false
     loadUsers()
   } catch (error) {
-    ElMessage.error(error.message || '添加用户失败')
+    notifyError(error, '添加用户失败')
   } finally {
     submitLoading.value = false
   }
@@ -473,7 +474,7 @@ async function handleUpdateRole() {
     roleDialogVisible.value = false
     loadUsers()
   } catch (error) {
-    ElMessage.error(error.message || '修改角色失败')
+    notifyError(error, '修改角色失败')
   } finally {
     submitLoading.value = false
   }
@@ -499,7 +500,7 @@ async function handleResetPassword() {
     ElMessage.success('重置密码成功')
     passwordDialogVisible.value = false
   } catch (error) {
-    ElMessage.error(error.message || '重置密码失败')
+    notifyError(error, '重置密码失败')
   } finally {
     submitLoading.value = false
   }
@@ -517,9 +518,7 @@ async function handleDisable(user) {
     ElMessage.success('禁用成功')
     loadUsers()
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '禁用失败')
-    }
+    notifyError(error, '禁用用户失败')
   }
 }
 
@@ -530,7 +529,7 @@ async function handleEnable(user) {
     ElMessage.success('启用成功')
     loadUsers()
   } catch (error) {
-    ElMessage.error(error.message || '启用失败')
+    notifyError(error, '启用用户失败')
   }
 }
 
