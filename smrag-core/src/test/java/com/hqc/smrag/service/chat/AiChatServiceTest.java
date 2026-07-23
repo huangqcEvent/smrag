@@ -9,6 +9,7 @@ import com.hqc.smrag.dto.CitationDTO;
 import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.exception.AiServiceException;
+import com.hqc.smrag.service.DocPermissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +89,39 @@ class AiChatServiceTest {
             "Rewritten question", "session-1", "finance", 42L
         );
         order.verify(persistenceService).save(any(ChatSession.class));
+    }
+
+    @Test
+    void rechecksPermissionsBeforeReturningAndPersistingCitations() {
+        DocPermissionService permissionService = mock(DocPermissionService.class);
+        service = new AiChatService(
+            queryService,
+            routeService,
+            knowledgeQaService,
+            businessService,
+            salesScriptService,
+            persistenceService,
+            permissionService,
+            new ObjectMapper(),
+            streamProperties
+        );
+        CitationDTO citation = new CitationDTO(
+            "vector-1", 42L, "finance", "policy.pdf", 1, 2, 0.9, "evidence"
+        );
+        when(permissionService.getAccessibleDocIds(7L))
+            .thenReturn(List.of(42L), List.of());
+        when(routeService.route("Rewritten question")).thenReturn(RouteType.KNOWLEDGE_QA);
+        when(knowledgeQaService.answer(
+            "Rewritten question", "session-1", "finance", 42L, List.of(42L)
+        )).thenReturn(new KnowledgeQaResult("Grounded answer", List.of(citation)));
+
+        ChatResponseDTO response = service.ask(request());
+
+        assertThat(response.getCitations()).isEmpty();
+        ArgumentCaptor<ChatSession> captor = ArgumentCaptor.forClass(ChatSession.class);
+        verify(persistenceService).save(captor.capture());
+        assertThat(captor.getValue().getReferenceDocs()).isEqualTo("[]");
+        verify(permissionService, times(2)).getAccessibleDocIds(7L);
     }
 
     @ParameterizedTest

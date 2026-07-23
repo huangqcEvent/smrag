@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 /**
  * 文档分块器
@@ -80,8 +81,16 @@ public class DocumentChunker {
         String documentType,
         int documentVersion,
         String documentStatus,
-        String checksum
+        String checksum,
+        Integer aclVersion,
+        Set<String> roleCodes
     ) {
+        if (aclVersion == null) {
+            throw new IllegalArgumentException("ACL version must not be null");
+        }
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            throw new IllegalArgumentException("ACL role codes must not be empty");
+        }
         List<Document> enrichedDocuments = sourceDocuments.stream()
             .map(source -> enrich(
                 source,
@@ -91,7 +100,9 @@ public class DocumentChunker {
                 documentType,
                 documentVersion,
                 documentStatus,
-                checksum
+                checksum,
+                aclVersion,
+                roleCodes
             ))
             .toList();
         List<Document> splitDocuments = splitter.apply(enrichedDocuments);
@@ -135,7 +146,9 @@ public class DocumentChunker {
         String documentType,
         int documentVersion,
         String documentStatus,
-        String checksum
+        String checksum,
+        Integer aclVersion,
+        Set<String> roleCodes
     ) {
         Map<String, Object> metadata = new HashMap<>(source.getMetadata());
         Object pageNumber = metadata.remove(PagePdfDocumentReader.METADATA_START_PAGE_NUMBER);
@@ -149,6 +162,9 @@ public class DocumentChunker {
         metadata.put("documentVersion", documentVersion);
         metadata.put("documentStatus", documentStatus);
         metadata.put("checksum", checksum);
+        metadata.put("aclVersion", aclVersion);
+        metadata.put("aclDenied", false);
+        roleCodes.forEach(role -> metadata.put("aclRole_" + role, true));
         return new Document(source.getText(), metadata);
     }
 }

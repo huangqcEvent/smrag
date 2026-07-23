@@ -4,10 +4,13 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.mapper.DocPermissionMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentSourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.InOrder;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
@@ -23,6 +26,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,6 +44,8 @@ class DocumentIngestionServiceTest {
     private final DocumentIngestionPersistenceService persistenceService =
         mock(DocumentIngestionPersistenceService.class);
     private final DocumentSourceResolver sourceResolver = mock(DocumentSourceResolver.class);
+    private final DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
+    private final DocPermissionService permissionService = mock(DocPermissionService.class);
     @TempDir
     Path tempDir;
     private DocumentIngestionService ingestionService;
@@ -51,13 +57,17 @@ class DocumentIngestionServiceTest {
             return new DocumentSourceResolver.ResolvedSource(
                 Path.of(document.getFilePath()), false);
         });
+        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
+            .thenReturn(List.of("ADMIN", "USER"));
         ingestionService = new DocumentIngestionService(
             documentMapper,
             reader,
             chunker,
             vectorStore,
             persistenceService,
-            sourceResolver
+            sourceResolver,
+            permissionMapper,
+            permissionService
         );
     }
 
@@ -77,7 +87,8 @@ class DocumentIngestionServiceTest {
         when(reader.read(temporaryFile, "PDF")).thenReturn(sources);
         when(chunker.chunk(
             sources, "default", 42L, "enterprise-rag.pdf", "PDF", 2,
-            DocumentStatus.COMPLETED.name(), "checksum-42")).thenReturn(chunks);
+            DocumentStatus.COMPLETED.name(), "checksum-42", 1,
+            java.util.Set.of("ADMIN", "USER"))).thenReturn(chunks);
 
         ingestionService.process(task(2));
 
@@ -102,14 +113,18 @@ class DocumentIngestionServiceTest {
             "PDF",
             2,
             DocumentStatus.COMPLETED.name(),
-            "checksum-42"
+            "checksum-42",
+            1,
+            java.util.Set.of("ADMIN", "USER")
         )).thenReturn(chunks);
 
         ingestionService.process(task);
 
         verify(persistenceService).markProcessing(42L, 2, PROCESSING_TOKEN);
-        verify(vectorStore).add(chunks);
-        verify(persistenceService).saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);
+        InOrder order = inOrder(vectorStore, permissionService, persistenceService);
+        order.verify(vectorStore).add(chunks);
+        order.verify(permissionService).synchronizeVectorAcl(42L);
+        order.verify(persistenceService).saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);
     }
 
     @Test
@@ -130,7 +145,9 @@ class DocumentIngestionServiceTest {
             "PDF",
             2,
             DocumentStatus.COMPLETED.name(),
-            "checksum-42"
+            "checksum-42",
+            1,
+            java.util.Set.of("ADMIN", "USER")
         )).thenReturn(chunks);
         doThrow(failure).when(persistenceService)
             .saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);
@@ -185,6 +202,7 @@ class DocumentIngestionServiceTest {
         document.setChecksum("checksum-42");
         document.setProcessingToken(PROCESSING_TOKEN);
         document.setStatus(status.name());
+        document.setAclVersion(1);
         return document;
     }
 

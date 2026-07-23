@@ -3,8 +3,10 @@ package com.hqc.smrag.service.knowledge;
 import com.hqc.smrag.entity.KnowledgeChunk;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.document.Document;
@@ -30,10 +32,14 @@ class VectorReindexRunnerTest {
     void repeatedRunsUseTheSameStableVectorIds() throws Exception {
         KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
         KnowledgeChunkMapper chunkMapper = mock(KnowledgeChunkMapper.class);
+        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
+        DocPermissionService permissionService = mock(DocPermissionService.class);
         VectorStore vectorStore = mock(VectorStore.class);
         VectorReindexRunner runner = new VectorReindexRunner(
             documentMapper,
             chunkMapper,
+            permissionMapper,
+            permissionService,
             vectorStore,
             new VectorDocumentIdGenerator()
         );
@@ -43,22 +49,33 @@ class VectorReindexRunnerTest {
         document.setName("legacy.pdf");
         document.setFileType("PDF");
         document.setVersion(1);
+        document.setAclVersion(3);
         document.setChecksum("legacy-checksum");
         document.setStatus(DocumentStatus.COMPLETED.name());
         KnowledgeChunk first = chunk(1L, 0, "first");
         KnowledgeChunk second = chunk(2L, 1, "second");
         when(documentMapper.selectList(any())).thenReturn(List.of(document));
         when(chunkMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
+            .thenReturn(List.of("ADMIN", "AUDITOR"));
 
         runner.run(new DefaultApplicationArguments());
         runner.run(new DefaultApplicationArguments());
 
         ArgumentCaptor<List<Document>> documentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(vectorStore, times(2)).add(documentsCaptor.capture());
+        verify(permissionService, times(2)).synchronizeVectorAcl(42L);
         assertThat(documentsCaptor.getAllValues().get(0)).extracting(Document::getId)
             .containsExactlyElementsOf(
                 documentsCaptor.getAllValues().get(1).stream().map(Document::getId).toList()
             );
+        assertThat(documentsCaptor.getAllValues().get(0))
+            .allSatisfy(vector -> assertThat(vector.getMetadata())
+                .containsEntry("aclVersion", 3)
+                .containsEntry("aclDenied", false)
+                .containsEntry("aclRole_ADMIN", true)
+                .containsEntry("aclRole_AUDITOR", true)
+                .doesNotContainKey("aclRole_USER"));
         ArgumentCaptor<Collection> chunksCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(chunkMapper, times(2)).updateById(chunksCaptor.capture(), eq(500));
         assertThat(first.getVectorId()).isNotNull();
@@ -70,10 +87,14 @@ class VectorReindexRunnerTest {
     void deletesNewVectorsWhenChunkBackfillFails() throws Exception {
         KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
         KnowledgeChunkMapper chunkMapper = mock(KnowledgeChunkMapper.class);
+        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
+        DocPermissionService permissionService = mock(DocPermissionService.class);
         VectorStore vectorStore = mock(VectorStore.class);
         VectorReindexRunner runner = new VectorReindexRunner(
             documentMapper,
             chunkMapper,
+            permissionMapper,
+            permissionService,
             vectorStore,
             new VectorDocumentIdGenerator()
         );
@@ -88,6 +109,8 @@ class VectorReindexRunnerTest {
         current.setDocumentVersion(2);
         when(documentMapper.selectList(any())).thenReturn(List.of(document));
         when(chunkMapper.selectList(any())).thenReturn(List.of(current));
+        when(permissionMapper.selectReadableRoleCodesByDocumentId(42L))
+            .thenReturn(List.of("ADMIN"));
         doThrow(new IllegalStateException("backfill failed"))
             .when(chunkMapper).updateById(any(Collection.class), eq(500));
 

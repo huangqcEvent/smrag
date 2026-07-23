@@ -21,7 +21,9 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -105,6 +107,7 @@ public class AiChatService {
             normalized.documentId(),
             accessibleDocIds
         );
+        branchAnswer = revalidateCitations(branchAnswer, userId);
         if (branchAnswer.answer() == null || branchAnswer.answer().isBlank()) {
             throw new AiServiceException(
                 "AI returned an empty answer",
@@ -364,10 +367,17 @@ public class AiChatService {
         if (context.routeType() != RouteType.KNOWLEDGE_QA) {
             return Flux.empty();
         }
-        return Flux.defer(() -> Flux.just(ChatStreamEvent.citations(
-            accumulator.citations(),
-            references(accumulator.citations())
-        )));
+        return Flux.defer(() -> {
+            BranchAnswer revalidated = revalidateCitations(
+                accumulator.toBranchAnswer(),
+                context.request().userId()
+            );
+            accumulator.replaceCitations(revalidated.citations());
+            return Flux.just(ChatStreamEvent.citations(
+                revalidated.citations(),
+                references(revalidated.citations())
+            ));
+        });
     }
 
     /**
@@ -483,6 +493,23 @@ public class AiChatService {
             .filter(name -> name != null && !name.isBlank())
             .distinct()
             .toList();
+    }
+
+    private BranchAnswer revalidateCitations(BranchAnswer answer, Long userId) {
+        if (answer.citations().isEmpty() || docPermissionService == null) {
+            return answer;
+        }
+        if (userId == null) {
+            return new BranchAnswer(answer.answer(), List.of());
+        }
+        Set<Long> accessibleDocIds = new HashSet<>(
+            docPermissionService.getAccessibleDocIds(userId)
+        );
+        List<CitationDTO> citations = answer.citations().stream()
+            .filter(citation -> citation.documentId() != null
+                && accessibleDocIds.contains(citation.documentId()))
+            .toList();
+        return new BranchAnswer(answer.answer(), citations);
     }
 
     /**
@@ -611,6 +638,10 @@ public class AiChatService {
             if (nextCitations != null && !nextCitations.isEmpty()) {
                 citations = List.copyOf(nextCitations);
             }
+        }
+
+        void replaceCitations(List<CitationDTO> nextCitations) {
+            citations = nextCitations == null ? List.of() : List.copyOf(nextCitations);
         }
 
         List<CitationDTO> citations() {

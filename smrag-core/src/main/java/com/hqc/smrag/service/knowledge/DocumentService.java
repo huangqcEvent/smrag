@@ -184,7 +184,7 @@ public class DocumentService {
         document.setStatus(DocumentStatus.PENDING.name());
         document.setChunkCount(0);
         document.setKnowledgeBaseId(normalizedKnowledgeBaseId);
-        document.setAclVersion(1);
+        document.setAclVersion(0);
         document.setVersion(1);
         document.setProcessingToken(UUID.randomUUID());
         document.setCreateTime(LocalDateTime.now());

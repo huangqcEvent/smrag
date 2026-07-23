@@ -3,7 +3,9 @@ package com.hqc.smrag.service.knowledge;
 import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentSourceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,8 +13,10 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 文档解析服务
@@ -55,6 +59,8 @@ public class DocumentIngestionService {
     private final VectorStore vectorStore;
     private final DocumentIngestionPersistenceService persistenceService;
     private final DocumentSourceResolver sourceResolver;
+    private final DocPermissionMapper permissionMapper;
+    private final DocPermissionService permissionService;
 
     /**
      * 处理文档解析任务
@@ -106,6 +112,12 @@ public class DocumentIngestionService {
                 return;
             }
             List<Document> sources = readSources(document);
+            Set<String> roleCodes = new LinkedHashSet<>(
+                permissionMapper.selectReadableRoleCodesByDocumentId(document.getId()));
+            if (roleCodes.isEmpty()) {
+                throw new IllegalStateException(
+                    "Document " + document.getId() + " has no readable roles");
+            }
             chunks = chunker.chunk(
                 sources,
                 document.getKnowledgeBaseId(),
@@ -114,10 +126,13 @@ public class DocumentIngestionService {
                 document.getFileType(),
                 document.getVersion(),
                 DocumentStatus.COMPLETED.name(),
-                document.getChecksum()
+                document.getChecksum(),
+                document.getAclVersion(),
+                roleCodes
             );
             vectorWriteAttempted = true;
             vectorStore.add(chunks);
+            permissionService.synchronizeVectorAcl(document.getId());
             persistenceService.saveCompleted(
                 document.getId(),
                 document.getVersion(),

@@ -5,6 +5,7 @@ import com.hqc.smrag.dto.CreateRoleRequest;
 import com.hqc.smrag.dto.UpdateRoleRequest;
 import com.hqc.smrag.entity.SysRole;
 import com.hqc.smrag.entity.SysUserRole;
+import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.SysRoleMapper;
 import com.hqc.smrag.mapper.SysUserRoleMapper;
 import com.hqc.smrag.vo.RoleVO;
@@ -20,6 +21,7 @@ import java.util.Locale;
 public class RoleService {
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;
+    private final DocPermissionMapper docPermissionMapper;
 
     public List<RoleVO> list() {
         return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
@@ -54,13 +56,19 @@ public class RoleService {
 
     @Transactional
     public void delete(Long id) {
-        SysRole role = requireRole(id);
+        SysRole role = roleMapper.selectByIdForUpdate(id);
+        if (role == null) {
+            throw new IllegalArgumentException("角色不存在");
+        }
         if ("ADMIN".equals(role.getRoleCode())) {
             throw new IllegalStateException("系统管理员角色不能删除");
         }
         if (userRoleMapper.selectCount(new LambdaQueryWrapper<SysUserRole>()
             .eq(SysUserRole::getRoleId, id)) > 0) {
             throw new IllegalStateException("角色仍分配给用户，请先调整用户角色");
+        }
+        if (docPermissionMapper.countByRoleId(id) > 0) {
+            throw new IllegalStateException("角色仍被文档权限使用，请先调整文档权限");
         }
         roleMapper.deleteById(id);
     }

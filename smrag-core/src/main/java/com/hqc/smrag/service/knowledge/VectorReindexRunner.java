@@ -3,8 +3,10 @@ package com.hqc.smrag.service.knowledge;
 import com.hqc.smrag.entity.KnowledgeChunk;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.service.DocPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -16,9 +18,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -62,6 +66,8 @@ public class VectorReindexRunner implements ApplicationRunner {
 
     private final KnowledgeDocumentMapper documentMapper;
     private final KnowledgeChunkMapper chunkMapper;
+    private final DocPermissionMapper permissionMapper;
+    private final DocPermissionService permissionService;
     private final VectorStore vectorStore;
     private final VectorDocumentIdGenerator idGenerator;
 
@@ -97,8 +103,17 @@ public class VectorReindexRunner implements ApplicationRunner {
             }
             List<Document> vectors = List.of();
             try {
-                vectors = toVectorDocuments(document, currentChunks);
+                Set<String> readableRoleCodes = new LinkedHashSet<>(
+                    permissionMapper.selectReadableRoleCodesByDocumentId(document.getId())
+                );
+                if (readableRoleCodes.isEmpty()) {
+                    throw new IllegalStateException(
+                        "Document " + document.getId() + " has no readable roles"
+                    );
+                }
+                vectors = toVectorDocuments(document, currentChunks, readableRoleCodes);
                 vectorStore.add(vectors);
+                permissionService.synchronizeVectorAcl(document.getId());
                 chunkMapper.updateById(currentChunks, BATCH_SIZE);
                 successfulDocuments++;
                 successfulChunks += vectors.size();
@@ -138,9 +153,11 @@ public class VectorReindexRunner implements ApplicationRunner {
      */
     private List<Document> toVectorDocuments(
         KnowledgeDocument document,
-        List<KnowledgeChunk> chunks
+        List<KnowledgeChunk> chunks,
+        Set<String> readableRoleCodes
     ) {
         int version = document.getVersion() == null ? 1 : document.getVersion();
+        int aclVersion = document.getAclVersion() == null ? 1 : document.getAclVersion();
         String knowledgeBaseId = Objects.requireNonNullElse(document.getKnowledgeBaseId(), "default");
         List<Document> vectors = new ArrayList<>(chunks.size());
         for (int position = 0; position < chunks.size(); position++) {
@@ -161,6 +178,9 @@ public class VectorReindexRunner implements ApplicationRunner {
             metadata.put("documentVersion", version);
             metadata.put("documentStatus", DocumentStatus.COMPLETED.name());
             metadata.put("chunkIndex", chunkIndex);
+            metadata.put("aclVersion", aclVersion);
+            metadata.put("aclDenied", false);
+            readableRoleCodes.forEach(roleCode -> metadata.put("aclRole_" + roleCode, true));
             putIfNotNull(metadata, "documentName", document.getName());
             putIfNotNull(metadata, "documentType", document.getFileType());
             putIfNotNull(metadata, "checksum", document.getChecksum());

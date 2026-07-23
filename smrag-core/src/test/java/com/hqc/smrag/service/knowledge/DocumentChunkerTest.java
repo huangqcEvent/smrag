@@ -7,6 +7,7 @@ import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,7 +41,9 @@ class DocumentChunkerTest {
             "PDF",
             2,
             "PROCESSING",
-            "checksum-42"
+            "checksum-42",
+            3,
+            Set.of("ADMIN")
         );
 
         assertThat(chunks).isNotEmpty();
@@ -54,6 +57,9 @@ class DocumentChunkerTest {
                 .containsEntry("documentVersion", 2)
                 .containsEntry("documentStatus", "PROCESSING")
                 .containsEntry("checksum", "checksum-42")
+                .containsEntry("aclVersion", 3)
+                .containsEntry("aclDenied", false)
+                .containsEntry("aclRole_ADMIN", true)
                 .containsKey("chunkIndex");
         });
         assertThat(chunks)
@@ -67,9 +73,34 @@ class DocumentChunkerTest {
             "PDF",
             2,
             "PROCESSING",
-            "checksum-42"
+            "checksum-42",
+            3,
+            Set.of("ADMIN")
         );
         assertThat(repeated).extracting(Document::getId)
             .containsExactlyElementsOf(chunks.stream().map(Document::getId).toList());
+    }
+
+    @Test
+    void writesSameAclMetadataToEveryChunk() {
+        RagProperties properties = new RagProperties();
+        properties.setChunkSize(30);
+        properties.setMinChunkSizeChars(1);
+        properties.setMinChunkLengthToEmbed(1);
+        DocumentChunker chunker =
+            new DocumentChunker(properties, new VectorDocumentIdGenerator());
+
+        List<Document> chunks = chunker.chunk(
+            List.of(new Document("permission aware knowledge content")),
+            "default", 42L, "manual.txt", "TXT", 1, "COMPLETED",
+            "checksum", 3, Set.of("ADMIN", "AUDITOR"));
+
+        assertThat(chunks).isNotEmpty().allSatisfy(chunk ->
+            assertThat(chunk.getMetadata())
+                .containsEntry("aclVersion", 3)
+                .containsEntry("aclDenied", false)
+                .containsEntry("aclRole_ADMIN", true)
+                .containsEntry("aclRole_AUDITOR", true)
+                .doesNotContainKey("aclRole_USER"));
     }
 }

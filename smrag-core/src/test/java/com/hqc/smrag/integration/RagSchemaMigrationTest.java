@@ -33,6 +33,14 @@ class RagSchemaMigrationTest {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
+                .target("6")
+                .load()
+                .migrate();
+            insertAclBackfillFixtures(postgres);
+            Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
                 .load()
                 .migrate();
 
@@ -46,6 +54,54 @@ class RagSchemaMigrationTest {
             assertTableExists(postgres, "spring_ai_chat_memory");
             assertIndexExists(postgres, "rag_vector_store_embedding_hnsw_idx");
             assertIndexExists(postgres, "idx_doc_permission_role_document");
+            assertAclBackfill(postgres);
+        }
+    }
+
+    private void insertAclBackfillFixtures(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = postgres.createConnection("");
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                INSERT INTO knowledge_document (id, name, acl_version)
+                VALUES (9001, 'granted.txt', 2), (9002, 'denied.txt', 5)
+                """);
+            statement.executeUpdate("""
+                INSERT INTO doc_permission (document_id, role_id, can_read)
+                SELECT 9001, id, true FROM sys_role WHERE role_code = 'ADMIN'
+                """);
+            statement.executeUpdate("""
+                INSERT INTO rag_vector_store (content, metadata)
+                VALUES
+                    ('granted', '{"documentId":9001}'),
+                    ('denied', '{"documentId":9002}')
+                """);
+        }
+    }
+
+    private void assertAclBackfill(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = postgres.createConnection("");
+             Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("""
+                 SELECT
+                     metadata->>'documentId' AS document_id,
+                     metadata->>'aclVersion' AS acl_version,
+                     metadata->>'aclDenied' AS acl_denied,
+                     metadata->>'aclRole_ADMIN' AS admin_role
+                 FROM rag_vector_store
+                 WHERE metadata->>'documentId' IN ('9001', '9002')
+                 ORDER BY metadata->>'documentId'
+                 """)) {
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getString("document_id")).isEqualTo("9001");
+            assertThat(rows.getString("acl_version")).isEqualTo("2");
+            assertThat(rows.getString("acl_denied")).isEqualTo("false");
+            assertThat(rows.getString("admin_role")).isEqualTo("true");
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getString("document_id")).isEqualTo("9002");
+            assertThat(rows.getString("acl_version")).isEqualTo("5");
+            assertThat(rows.getString("acl_denied")).isEqualTo("true");
+            assertThat(rows.getString("admin_role")).isNull();
+            assertThat(rows.next()).isFalse();
         }
     }
 

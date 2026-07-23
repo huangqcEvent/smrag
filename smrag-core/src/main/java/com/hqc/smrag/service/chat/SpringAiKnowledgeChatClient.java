@@ -267,7 +267,10 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         // 基础过滤：知识库ID + 文档状态
         FilterExpressionBuilder.Op baseFilter = filters.and(
             filters.eq("knowledgeBaseId", knowledgeBaseId),
-            filters.eq("documentStatus", "COMPLETED")
+            filters.and(
+                filters.eq("documentStatus", "COMPLETED"),
+                filters.eq("aclDenied", false)
+            )
         );
 
         // 文档ID过滤（如果指定）
