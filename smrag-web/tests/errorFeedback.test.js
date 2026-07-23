@@ -4,6 +4,7 @@ import {
   isSilentError,
   toUserErrorMessage
 } from '../src/utils/safeError.js'
+import { createErrorNotifier } from '../src/utils/errorFeedback.js'
 
 test('uses the operation fallback for generic server and Axios errors', () => {
   assert.equal(toUserErrorMessage({
@@ -60,4 +61,15 @@ test('treats cancellations and aborted requests as silent', () => {
   assert.equal(isSilentError('close'), true)
   assert.equal(isSilentError({ name: 'AbortError' }), true)
   assert.equal(isSilentError(new Error('failed')), false)
+})
+
+test('notifies the same error object only once and ignores aborts', () => {
+  const messages = []
+  const notify = createErrorNotifier(message => messages.push(message))
+  const error = new Error('Request failed with status code 500')
+
+  assert.equal(notify(error, '保存失败'), '保存失败')
+  assert.equal(notify(error, '保存失败'), '')
+  assert.equal(notify({ name: 'AbortError' }, '保存失败'), '')
+  assert.deepEqual(messages, ['保存失败'])
 })

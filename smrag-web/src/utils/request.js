@@ -1,7 +1,7 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { notifyError } from './errorFeedback'
 
 // 创建axios实例
 const request = axios.create({
@@ -35,9 +35,15 @@ request.interceptors.response.use(
       if (body.code === 200) {
         return body.data
       }
-      const message = body.message || '请求失败'
-      ElMessage.error(message)
-      return Promise.reject(new Error(message))
+      const error = new Error(body.message || '')
+      error.name = 'RequestError'
+      error.response = {
+        status: Number(body.code) || response.status,
+        data: body
+      }
+      error.config = response.config
+      notifyError(error)
+      return Promise.reject(error)
     }
     return body
   },
@@ -50,10 +56,10 @@ request.interceptors.response.use(
         const authStore = useAuthStore()
         authStore.logout()
         router.push('/login')
-        ElMessage.error('登录已过期，请重新登录')
+        notifyError(error, '登录已过期，请重新登录')
       }
     } else {
-      ElMessage.error(error.response?.data?.message || error.message || '请求失败')
+      notifyError(error)
     }
     return Promise.reject(error)
   }
