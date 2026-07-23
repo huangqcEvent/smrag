@@ -40,6 +40,8 @@ public class DocumentParseTaskDTO {
      */
     private String filePath;
 
+    private String objectKey;
+
     /**
      * 文档类型（PDF、WORD、TXT）
      */
@@ -77,6 +79,20 @@ public class DocumentParseTaskDTO {
      * @param fileType   文件类型
      */
     public DocumentParseTaskDTO(Long documentId, String filePath, String fileType) {
-        this(documentId, filePath, fileType, "default", 1, null, null);
+        this(documentId, filePath, null, fileType, "default", 1, null, null);
+    }
+
+    public DocumentParseTaskDTO(
+        Long documentId,
+        String filePath,
+        String fileType,
+        String knowledgeBaseId,
+        Integer version,
+        String checksum,
+        UUID processingToken
+    ) {
+        this(
+            documentId, filePath, null, fileType, knowledgeBaseId,
+            version, checksum, processingToken);
     }
 }

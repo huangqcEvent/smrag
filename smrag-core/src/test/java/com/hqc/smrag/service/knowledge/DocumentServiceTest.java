@@ -9,6 +9,7 @@ import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
+import com.hqc.smrag.service.storage.DocumentStorage;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ class DocumentServiceTest {
         mock(DocumentUploadPersistenceService.class);
     private final RagProperties properties = new RagProperties();
     private final DocPermissionService docPermissionService = mock(DocPermissionService.class);
+    private final DocumentStorage documentStorage = mock(DocumentStorage.class);
 
     @BeforeAll
     static void initializeMybatisMetadata() {
@@ -86,7 +88,7 @@ class DocumentServiceTest {
     @Test
     void uploadDocumentSanitizesFileNameAndDetectsTypeCaseInsensitively() throws Exception {
         DocumentService documentService = service();
-        when(uploadPersistenceService.createDocumentAndOutbox(any(KnowledgeDocument.class)))
+        when(uploadPersistenceService.createPlaceholder(any(KnowledgeDocument.class)))
             .thenAnswer(invocation -> {
             KnowledgeDocument document = invocation.getArgument(0);
             document.setId(42L);
@@ -102,19 +104,22 @@ class DocumentServiceTest {
         documentService.uploadDocument(file);
 
         ArgumentCaptor<KnowledgeDocument> documentCaptor = ArgumentCaptor.forClass(KnowledgeDocument.class);
-        verify(uploadPersistenceService).createDocumentAndOutbox(documentCaptor.capture());
+        verify(uploadPersistenceService).createPlaceholder(documentCaptor.capture());
         KnowledgeDocument document = documentCaptor.getValue();
 
         assertThat(document.getName()).isEqualTo("销售手册.PDF");
-        assertThat(document.getFilePath()).endsWith("_销售手册.PDF");
-        assertThat(document.getFilePath()).doesNotContain("..");
+        assertThat(document.getStorageType()).isEqualTo("MINIO");
         assertThat(document.getFileType()).isEqualTo("PDF");
         assertThat(document.getStatus()).isEqualTo(DocumentStatus.PENDING.name());
         assertThat(document.getKnowledgeBaseId()).isEqualTo("default");
         assertThat(document.getVersion()).isEqualTo(1);
         assertThat(document.getProcessingToken()).isNotNull();
-        assertThat(document.getChecksum())
-            .isEqualTo("ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73");
+        verify(uploadPersistenceService).completeUpload(
+            org.mockito.ArgumentMatchers.eq(42L),
+            org.mockito.ArgumentMatchers.startsWith("rag/document/42/"),
+            org.mockito.ArgumentMatchers.eq(
+                "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73"),
+            org.mockito.ArgumentMatchers.eq(List.of("ADMIN", "USER")));
 
     }
 
@@ -133,15 +138,17 @@ class DocumentServiceTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("文件大小");
         verify(uploadPersistenceService, never())
-            .createDocumentAndOutbox(any(KnowledgeDocument.class));
+            .createPlaceholder(any(KnowledgeDocument.class));
     }
 
     @Test
     void uploadDocumentDeletesFileWhenTransactionalPersistenceFails() {
         DocumentService documentService = service();
+        when(uploadPersistenceService.createPlaceholder(any())).thenReturn(42L);
         doThrow(new IllegalStateException("transaction failed"))
             .when(uploadPersistenceService)
-            .createDocumentAndOutbox(any(KnowledgeDocument.class));
+            .completeUpload(
+                org.mockito.ArgumentMatchers.eq(42L), any(), any(), any());
         MockMultipartFile file = new MockMultipartFile(
             "file",
             "document.pdf",
@@ -152,7 +159,9 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> documentService.uploadDocument(file))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("transaction failed");
-        assertThat(uploadDir).isEmptyDirectory();
+        verify(documentStorage).delete(
+            org.mockito.ArgumentMatchers.startsWith("rag/document/42/"));
+        verify(uploadPersistenceService).deletePlaceholder(42L);
     }
 
     @Test
@@ -205,7 +214,9 @@ class DocumentServiceTest {
             vectorStore,
             properties,
             uploadDir.toString(),
-            docPermissionService
+            docPermissionService,
+            documentStorage,
+            "rag/document"
         );
     }
 

@@ -3,12 +3,14 @@ package com.hqc.smrag.service.knowledge;
 import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.hqc.smrag.config.RagProperties;
+import com.hqc.smrag.config.MinioStorageProperties;
 import com.hqc.smrag.entity.KnowledgeChunk;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
+import com.hqc.smrag.service.storage.DocumentStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +73,8 @@ public class DocumentService {
     private final RagProperties properties;
     private final String uploadDir;
     private final DocPermissionService docPermissionService;
+    private final DocumentStorage documentStorage;
+    private final String objectPrefix;
 
     @Autowired
     public DocumentService(
@@ -79,7 +83,9 @@ public class DocumentService {
         DocumentUploadPersistenceService uploadPersistenceService,
         VectorStore vectorStore,
         RagProperties properties,
-        DocPermissionService docPermissionService
+        DocPermissionService docPermissionService,
+        DocumentStorage documentStorage,
+        MinioStorageProperties storageProperties
     ) {
         this(
             documentMapper,
@@ -88,7 +94,9 @@ public class DocumentService {
             vectorStore,
             properties,
             DEFAULT_UPLOAD_DIR,
-            docPermissionService
+            docPermissionService,
+            documentStorage,
+            storageProperties.getObjectPrefix()
         );
     }
 
@@ -99,7 +107,9 @@ public class DocumentService {
         VectorStore vectorStore,
         RagProperties properties,
         String uploadDir,
-        DocPermissionService docPermissionService
+        DocPermissionService docPermissionService,
+        DocumentStorage documentStorage,
+        String objectPrefix
     ) {
         this.documentMapper = documentMapper;
         this.chunkMapper = chunkMapper;
@@ -108,6 +118,8 @@ public class DocumentService {
         this.properties = properties;
         this.uploadDir = uploadDir;
         this.docPermissionService = docPermissionService;
+        this.documentStorage = documentStorage;
+        this.objectPrefix = objectPrefix;
     }
 
     /**
@@ -118,7 +130,7 @@ public class DocumentService {
      * @throws IOException 文件处理异常
      */
     public Long uploadDocument(MultipartFile file) throws IOException {
-        return uploadDocument(file, DEFAULT_KNOWLEDGE_BASE);
+        return uploadDocument(file, DEFAULT_KNOWLEDGE_BASE, List.of("ADMIN", "USER"));
     }
 
     /**
@@ -139,7 +151,25 @@ public class DocumentService {
      * @throws IllegalArgumentException 文件校验失败时抛出
      */
     public Long uploadDocument(MultipartFile file, String knowledgeBaseId) throws IOException {
+        return uploadDocument(file, knowledgeBaseId, List.of("ADMIN", "USER"));
+    }
+
+    public Long uploadDocument(
+        MultipartFile file,
+        String knowledgeBaseId,
+        List<String> roleCodes
+    ) throws IOException {
         validateFile(file);
+        List<String> normalizedRoles = roleCodes == null ? List.of() : roleCodes.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(String::trim)
+            .filter(role -> !role.isEmpty())
+            .map(role -> role.toUpperCase(Locale.ROOT))
+            .distinct()
+            .toList();
+        if (normalizedRoles.isEmpty()) {
+            throw new IllegalArgumentException("文档至少需要一个可读角色");
+        }
         String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String fileType = getFileType(fileName);
@@ -147,40 +177,64 @@ public class DocumentService {
             throw new IllegalArgumentException("不支持的文件类型，仅支持 PDF、DOC、DOCX、TXT");
         }
 
-        String storedFileName = System.currentTimeMillis() + "_" + UUID.randomUUID() + "_" + fileName;
-        Path destination = Path.of(uploadDir, storedFileName);
-        Files.createDirectories(destination.getParent());
-        String checksum;
-        try {
-            checksum = copyAndChecksum(file, destination);
-        } catch (IOException | RuntimeException failure) {
-            FileUtil.del(destination.toFile());
-            throw failure;
-        }
-
         KnowledgeDocument document = new KnowledgeDocument();
         document.setName(fileName);
-        document.setFilePath(destination.toString());
+        document.setStorageType("MINIO");
         document.setFileType(fileType);
         document.setStatus(DocumentStatus.PENDING.name());
         document.setChunkCount(0);
         document.setKnowledgeBaseId(normalizedKnowledgeBaseId);
-        document.setChecksum(checksum);
+        document.setAclVersion(1);
         document.setVersion(1);
         document.setProcessingToken(UUID.randomUUID());
         document.setCreateTime(LocalDateTime.now());
         document.setUpdateTime(LocalDateTime.now());
 
+        Long documentId = uploadPersistenceService.createPlaceholder(document);
+        String objectKey = objectPrefix + "/" + documentId + "/"
+            + UUID.randomUUID() + "-" + fileName;
+        boolean objectStored = false;
         try {
-            Long documentId = uploadPersistenceService.createDocumentAndOutbox(document);
             // 设置默认权限（ADMIN 和 USER 都可读）
-            docPermissionService.setDefaultPermissions(documentId);
+            String checksum = checksum(file);
+            try (InputStream input = file.getInputStream()) {
+                documentStorage.put(
+                    objectKey, input, file.getSize(), file.getContentType());
+            }
+            objectStored = true;
+            uploadPersistenceService.completeUpload(
+                documentId, objectKey, checksum, normalizedRoles);
             log.info("Submitted document {} version {} for ingestion", document.getId(), document.getVersion());
             return documentId;
-        } catch (RuntimeException failure) {
-            FileUtil.del(destination.toFile());
+        } catch (IOException | RuntimeException failure) {
+            if (objectStored) {
+                try {
+                    documentStorage.delete(objectKey);
+                } catch (RuntimeException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
+            try {
+                uploadPersistenceService.deletePlaceholder(documentId);
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
             throw failure;
         }
+    }
+
+    private String checksum(MultipartFile file) throws IOException {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+        try (InputStream input = file.getInputStream();
+             DigestInputStream digestInput = new DigestInputStream(input, digest)) {
+            digestInput.transferTo(java.io.OutputStream.nullOutputStream());
+        }
+        return HexFormat.of().formatHex(digest.digest());
     }
 
     /**

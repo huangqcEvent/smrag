@@ -64,25 +64,14 @@ public class KnowledgeController {
         @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId,
         @RequestParam(value = "roles", defaultValue = "ADMIN,USER") String roles
     ) throws Exception {
-        Long documentId = documentService.uploadDocument(file, knowledgeBaseId);
+        List<String> roleCodes = java.util.Arrays.stream(roles.split(","))
+            .map(String::trim)
+            .filter(role -> !role.isEmpty())
+            .toList();
+        Long documentId =
+            documentService.uploadDocument(file, knowledgeBaseId, roleCodes);
 
         // 设置文档权限
-        SetDocPermissionRequest permissionRequest = new SetDocPermissionRequest();
-        List<SetDocPermissionRequest.RolePermission> permissions = new java.util.ArrayList<>();
-
-        for (String role : roles.split(",")) {
-            String trimmedRole = role.trim();
-            if (!trimmedRole.isEmpty()) {
-                SetDocPermissionRequest.RolePermission perm = new SetDocPermissionRequest.RolePermission();
-                perm.setRoleCode(trimmedRole);
-                perm.setCanRead(true);
-                permissions.add(perm);
-            }
-        }
-
-        permissionRequest.setPermissions(permissions);
-        docPermissionService.setDocumentPermissions(documentId, permissionRequest);
-
         return Result.success(documentId);
     }
 
