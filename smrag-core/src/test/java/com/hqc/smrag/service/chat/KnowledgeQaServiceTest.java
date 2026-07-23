@@ -47,7 +47,7 @@ class KnowledgeQaServiceTest {
 
         KnowledgeQaResult result = service.answer("Question", "session-1", "  ", null);
 
-        assertThat(result.answer()).isEqualTo("\u5f53\u524d\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u4f9d\u636e\u56de\u7b54\u8be5\u95ee\u9898\u3002");
+        assertThat(result.answer()).isEqualTo("\u5f53\u524d\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u8bc1\u636e\u56de\u7b54\u8be5\u95ee\u9898\u3002");
         assertThat(result.citations()).isEmpty();
         verify(chatClient).answer("Question", "session-1", "default", null);
     }
