@@ -13,7 +13,7 @@ import java.util.List;
  *     <li>多知识库隔离：通过 knowledgeBaseId 区分不同知识库</li>
  *     <li>文档级别限定：通过 documentId 限定检索范围</li>
  *     <li>多轮对话记忆：通过 sessionId 维护对话上下文</li>
- *     <li>权限过滤：通过 accessibleDocIds 限制可访问的文档</li>
+ *     <li>权限过滤：通过用户当前角色 ID 匹配 chunk ACL 元数据</li>
  * </ul>
  *
  * @see SpringAiKnowledgeChatClient Spring AI 实现类
@@ -32,7 +32,7 @@ public interface KnowledgeChatClient {
      * @param sessionId       会话ID，用于多轮对话记忆
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
-     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @param roleIds 用户当前角色 ID 列表
      * @return 知识库答案，包含答案内容和引用的文档列表
      */
     KnowledgeAnswer answer(
@@ -40,7 +40,7 @@ public interface KnowledgeChatClient {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     );
 
     Flux<KnowledgeAnswer> stream(
@@ -48,7 +48,7 @@ public interface KnowledgeChatClient {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     );
 
     default Flux<KnowledgeAnswer> stream(String question, String sessionId,

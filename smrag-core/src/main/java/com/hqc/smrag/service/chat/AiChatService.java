@@ -92,9 +92,8 @@ public class AiChatService {
         String question = normalized.question();
         Long userId = normalized.userId();
 
-        // 获取用户可访问的文档ID列表（用于权限过滤）
-        List<Long> accessibleDocIds = userId != null && docPermissionService != null
-            ? docPermissionService.getAccessibleDocIds(userId)
+        List<Long> roleIds = userId != null && docPermissionService != null
+            ? docPermissionService.getUserRoleIds(userId)
             : null;
 
         String rewrittenQuestion = queryService.rewrite(question, sessionId);
@@ -105,7 +104,7 @@ public class AiChatService {
             sessionId,
             normalized.knowledgeBaseId(),
             normalized.documentId(),
-            accessibleDocIds
+            roleIds
         );
         branchAnswer = revalidateCitations(branchAnswer, userId);
         if (branchAnswer.answer() == null || branchAnswer.answer().isBlank()) {
@@ -146,9 +145,8 @@ public class AiChatService {
                 StreamRequest normalized = normalizeStreamRequest(request);
                 Long userId = normalized.userId();
 
-                // 获取用户可访问的文档ID列表（用于权限过滤）
-                List<Long> accessibleDocIds = userId != null && docPermissionService != null
-                    ? docPermissionService.getAccessibleDocIds(userId)
+                List<Long> roleIds = userId != null && docPermissionService != null
+                    ? docPermissionService.getUserRoleIds(userId)
                     : null;
 
                 Flux<ChatStreamEvent> processing = Mono.fromCallable(() -> {
@@ -157,7 +155,7 @@ public class AiChatService {
                             normalized.sessionId()
                         );
                         RouteType routeType = routeService.route(rewrittenQuestion);
-                        return new StreamContext(normalized, rewrittenQuestion, routeType, accessibleDocIds);
+                        return new StreamContext(normalized, rewrittenQuestion, routeType, roleIds);
                     })
                     .subscribeOn(Schedulers.boundedElastic())
                     .flatMapMany(this::streamPrepared);
@@ -218,7 +216,7 @@ public class AiChatService {
      * @param sessionId        会话ID
      * @param knowledgeBaseId  知识库ID
      * @param documentId       文档ID（可选）
-     * @param accessibleDocIds 用户可访问的文档ID列表
+     * @param roleIds 用户当前角色 ID 列表
      * @return 分支处理结果
      */
     private BranchAnswer answer(
@@ -227,14 +225,14 @@ public class AiChatService {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         return switch (routeType) {
             case KNOWLEDGE_QA -> {
-                KnowledgeQaResult result = accessibleDocIds == null
+                KnowledgeQaResult result = roleIds == null
                     ? knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId)
                     : knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId,
-                        accessibleDocIds);
+                        roleIds);
                 yield new BranchAnswer(result.answer(), result.citations());
             }
             case PRODUCT_QUERY, PRODUCT_COMPARE, PRODUCT_RECOMMEND, MANAGER_QUERY ->
@@ -335,12 +333,12 @@ public class AiChatService {
         StreamContext context,
         StreamAccumulator accumulator
     ) {
-        Flux<KnowledgeQaResult> source = context.accessibleDocIds() == null
+        Flux<KnowledgeQaResult> source = context.roleIds() == null
             ? knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
                 context.request().knowledgeBaseId(), context.request().documentId())
             : knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
                 context.request().knowledgeBaseId(), context.request().documentId(),
-                context.accessibleDocIds());
+                context.roleIds());
         return source
             .map(chunk -> {
                 accumulator.append(chunk.answer());
@@ -619,7 +617,7 @@ public class AiChatService {
         StreamRequest request,
         String rewrittenQuestion,
         RouteType routeType,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
     }
 

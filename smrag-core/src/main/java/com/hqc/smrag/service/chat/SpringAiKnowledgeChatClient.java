@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Spring AI 知识库聊天客户端实现
@@ -87,7 +88,7 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      * @param sessionId       会话ID
      * @param knowledgeBaseId 知识库ID
      * @param documentId      文档ID（可选）
-     * @param accessibleDocIds 用户可访问的文档ID列表
+     * @param roleIds 用户当前角色 ID 列表
      * @return 知识库答案
      */
     @Override
@@ -96,9 +97,10 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
-        RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId, accessibleDocIds);
+        RetrievalAugmentationAdvisor ragAdvisor =
+            buildRagAdvisor(knowledgeBaseId, documentId, roleIds);
 
         ChatClientResponse response = chatClient.prompt()
             .system(SYSTEM_PROMPT)
@@ -149,7 +151,7 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      * @param sessionId       会话ID，用于多轮对话记忆
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
-     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @param roleIds 用户当前角色 ID 列表
      * @return KnowledgeAnswer 流，每个元素包含答案片段和引用文档列表
      */
     public Flux<KnowledgeAnswer> stream(
@@ -157,10 +159,11 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         return Flux.defer(() -> {
-            RetrievalAugmentationAdvisor ragAdvisor = buildRagAdvisor(knowledgeBaseId, documentId, accessibleDocIds);
+            RetrievalAugmentationAdvisor ragAdvisor =
+                buildRagAdvisor(knowledgeBaseId, documentId, roleIds);
             return chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .messages(history(sessionId))
@@ -216,19 +219,19 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
      *
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
-     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @param roleIds 用户当前角色 ID 列表
      * @return RAG Advisor 实例
      */
     private RetrievalAugmentationAdvisor buildRagAdvisor(
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(ragProperties.getSimilarityThreshold())
             .topK(ragProperties.getTopK())
-            .filterExpression(buildFilter(knowledgeBaseId, documentId, accessibleDocIds))
+            .filterExpression(buildFilter(knowledgeBaseId, documentId, roleIds))
             .build();
         return RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
@@ -260,7 +263,7 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
     private Filter.Expression buildFilter(
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         FilterExpressionBuilder filters = new FilterExpressionBuilder();
 
@@ -278,25 +281,31 @@ public class SpringAiKnowledgeChatClient implements KnowledgeChatClient {
             ? filters.and(baseFilter, filters.eq("documentId", documentId))
             : baseFilter;
 
-        // 权限过滤：只检索用户有权限的文档
-        if (accessibleDocIds == null || accessibleDocIds.isEmpty()) {
+        List<Long> normalizedRoleIds = roleIds == null
+            ? List.of()
+            : roleIds.stream()
+                .filter(Objects::nonNull)
+                .filter(roleId -> roleId > 0)
+                .distinct()
+                .toList();
+        if (normalizedRoleIds.isEmpty()) {
             // An authenticated user without grants must never fall back to an
             // unrestricted knowledge-base search. Document ids are positive.
             filter = filters.and(filter, filters.eq("documentId", -1L));
         } else {
-            if (accessibleDocIds.size() == 1) {
-                // 单个文档ID，使用 eq
-                filter = filters.and(filter, filters.eq("documentId", accessibleDocIds.get(0)));
+            if (normalizedRoleIds.size() == 1) {
+                filter = filters.and(
+                    filter,
+                    filters.eq("aclRoleId_" + normalizedRoleIds.get(0), true)
+                );
             } else {
-                // 多个文档ID，使用 OR 组合多个 eq 条件
-                List<FilterExpressionBuilder.Op> docIdFilters = accessibleDocIds.stream()
-                    .map(docId -> filters.eq("documentId", docId))
+                List<FilterExpressionBuilder.Op> roleFilters = normalizedRoleIds.stream()
+                    .map(roleId -> filters.eq("aclRoleId_" + roleId, true))
                     .toList();
 
-                // 构建 OR 条件：第一个和第二个 or，然后结果和第三个 or，依此类推
-                FilterExpressionBuilder.Op orFilter = docIdFilters.get(0);
-                for (int i = 1; i < docIdFilters.size(); i++) {
-                    orFilter = filters.or(orFilter, docIdFilters.get(i));
+                FilterExpressionBuilder.Op orFilter = roleFilters.get(0);
+                for (int i = 1; i < roleFilters.size(); i++) {
+                    orFilter = filters.or(orFilter, roleFilters.get(i));
                 }
                 filter = filters.and(filter, orFilter);
             }

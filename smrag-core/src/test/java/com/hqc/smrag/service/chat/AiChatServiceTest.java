@@ -25,11 +25,12 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,11 +109,11 @@ class AiChatServiceTest {
         CitationDTO citation = new CitationDTO(
             "vector-1", 42L, "finance", "policy.pdf", 1, 2, 0.9, "evidence"
         );
-        when(permissionService.getAccessibleDocIds(7L))
-            .thenReturn(List.of(42L), List.of());
+        when(permissionService.getUserRoleIds(7L)).thenReturn(List.of(5L));
+        when(permissionService.getAccessibleDocIds(7L)).thenReturn(List.of());
         when(routeService.route("Rewritten question")).thenReturn(RouteType.KNOWLEDGE_QA);
         when(knowledgeQaService.answer(
-            "Rewritten question", "session-1", "finance", 42L, List.of(42L)
+            eq("Rewritten question"), eq("session-1"), eq("finance"), eq(42L), anyList()
         )).thenReturn(new KnowledgeQaResult("Grounded answer", List.of(citation)));
 
         ChatResponseDTO response = service.ask(request());
@@ -121,7 +122,10 @@ class AiChatServiceTest {
         ArgumentCaptor<ChatSession> captor = ArgumentCaptor.forClass(ChatSession.class);
         verify(persistenceService).save(captor.capture());
         assertThat(captor.getValue().getReferenceDocs()).isEqualTo("[]");
-        verify(permissionService, times(2)).getAccessibleDocIds(7L);
+        verify(knowledgeQaService).answer(
+            "Rewritten question", "session-1", "finance", 42L, List.of(5L));
+        verify(permissionService).getUserRoleIds(7L);
+        verify(permissionService).getAccessibleDocIds(7L);
     }
 
     @ParameterizedTest
@@ -166,12 +170,26 @@ class AiChatServiceTest {
 
     @Test
     void streamsKnowledgeEventsInOrderAndPersistsOnlyTheCompletedAnswer() {
+        DocPermissionService permissionService = mock(DocPermissionService.class);
+        service = new AiChatService(
+            queryService,
+            routeService,
+            knowledgeQaService,
+            businessService,
+            salesScriptService,
+            persistenceService,
+            permissionService,
+            new ObjectMapper(),
+            streamProperties
+        );
         CitationDTO citation = new CitationDTO(
             "vector-1", 42L, "finance", "policy.pdf", 1, 2, 0.9, "evidence"
         );
+        when(permissionService.getUserRoleIds(7L)).thenReturn(List.of(5L));
+        when(permissionService.getAccessibleDocIds(7L)).thenReturn(List.of(42L));
         when(routeService.route("Rewritten question")).thenReturn(RouteType.KNOWLEDGE_QA);
         when(knowledgeQaService.stream(
-            "Rewritten question", "session-1", "finance", 42L
+            eq("Rewritten question"), eq("session-1"), eq("finance"), eq(42L), anyList()
         )).thenReturn(Flux.just(
             new KnowledgeQaResult("Grounded ", List.of(citation)),
             new KnowledgeQaResult("answer", List.of(citation))
@@ -201,6 +219,10 @@ class AiChatServiceTest {
         ArgumentCaptor<ChatSession> captor = ArgumentCaptor.forClass(ChatSession.class);
         verify(persistenceService).save(captor.capture());
         assertThat(captor.getValue().getAnswer()).isEqualTo("Grounded answer");
+        verify(knowledgeQaService).stream(
+            "Rewritten question", "session-1", "finance", 42L, List.of(5L));
+        verify(permissionService).getUserRoleIds(7L);
+        verify(permissionService).getAccessibleDocIds(7L);
     }
 
     @Test

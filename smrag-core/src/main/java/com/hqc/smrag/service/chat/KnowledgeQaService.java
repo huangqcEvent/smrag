@@ -72,7 +72,7 @@ public class KnowledgeQaService {
      * @param sessionId       会话ID，用于多轮对话记忆
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
-     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @param roleIds 用户当前角色 ID 列表
      * @return 问答结果，包含答案和引用来源
      * @throws AiServiceException AI 服务调用失败时抛出
      */
@@ -81,7 +81,7 @@ public class KnowledgeQaService {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
         KnowledgeChatClient.KnowledgeAnswer knowledgeAnswer;
@@ -91,7 +91,7 @@ public class KnowledgeQaService {
                 sessionId,
                 normalizedKnowledgeBaseId,
                 documentId,
-                accessibleDocIds
+                roleIds
             );
         } catch (AiServiceException failure) {
             throw failure;
@@ -135,7 +135,7 @@ public class KnowledgeQaService {
      * @param sessionId       会话ID，用于多轮对话记忆
      * @param knowledgeBaseId 知识库ID，用于数据隔离
      * @param documentId      文档ID（可选），限定检索范围
-     * @param accessibleDocIds 用户可访问的文档ID列表（用于权限过滤）
+     * @param roleIds 用户当前角色 ID 列表
      * @return 问答结果流，每个元素包含答案片段和引用来源
      */
     public Flux<KnowledgeQaResult> stream(
@@ -143,7 +143,7 @@ public class KnowledgeQaService {
         String sessionId,
         String knowledgeBaseId,
         Long documentId,
-        List<Long> accessibleDocIds
+        List<Long> roleIds
     ) {
         String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
         return mapStream(Flux.defer(() -> chatClient.stream(
@@ -151,7 +151,7 @@ public class KnowledgeQaService {
                 sessionId,
                 normalizedKnowledgeBaseId,
                 documentId,
-                accessibleDocIds
+                roleIds
             )));
     }
 
