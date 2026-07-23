@@ -6,6 +6,7 @@ import com.hqc.smrag.security.dto.LoginResponse;
 import com.hqc.smrag.security.dto.RefreshTokenRequest;
 import com.hqc.smrag.security.service.AuthService;
 import com.hqc.smrag.vo.UserVO;
+import com.hqc.smrag.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
 
     /**
      * 用户登录
@@ -55,9 +57,7 @@ public class AuthController {
      */
     @GetMapping("/me")
     public Result<UserVO> getCurrentUser(@AuthenticationPrincipal Long userId) {
-        // 这里需要一个简单的方法获取用户信息
-        // 由于我们没有直接注入 UserService，这里简化处理
-        return Result.success(null);
+        return Result.success(userService.getUserById(userId));
     }
 
     /**
