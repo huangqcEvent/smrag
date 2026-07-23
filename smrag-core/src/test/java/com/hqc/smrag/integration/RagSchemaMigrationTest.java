@@ -38,9 +38,14 @@ class RagSchemaMigrationTest {
 
             assertColumnType(postgres, "knowledge_chunk", "vector_id", "uuid");
             assertColumnType(postgres, "knowledge_document", "checksum", "varchar");
+            assertColumnType(postgres, "knowledge_document", "storage_type", "varchar");
+            assertColumnType(postgres, "knowledge_document", "object_key", "varchar");
+            assertColumnType(postgres, "knowledge_document", "parsed_text_object_key", "varchar");
+            assertColumnType(postgres, "knowledge_document", "acl_version", "int4");
             assertTableExists(postgres, "rag_vector_store");
             assertTableExists(postgres, "spring_ai_chat_memory");
             assertIndexExists(postgres, "rag_vector_store_embedding_hnsw_idx");
+            assertIndexExists(postgres, "idx_doc_permission_role_document");
         }
     }
 

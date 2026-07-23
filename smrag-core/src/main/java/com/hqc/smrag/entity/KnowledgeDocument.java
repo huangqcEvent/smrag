@@ -48,6 +48,14 @@ public class KnowledgeDocument {
      */
     private String filePath;
 
+    private String storageType;
+
+    private String objectKey;
+
+    private String parsedTextObjectKey;
+
+    private Integer aclVersion;
+
     /**
      * 文件类型（PDF、WORD、TXT）
      */

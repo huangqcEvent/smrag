@@ -71,6 +71,14 @@ logging:
     com.hqc.smrag: DEBUG
 
 smrag:
+  storage:
+    minio:
+      endpoint: http://127.0.0.1:9000
+      access-key: ${SMRAG_MINIO_ACCESS_KEY}
+      secret-key: ${SMRAG_MINIO_SECRET_KEY}
+      bucket-name: ${prefix.distinction.name:super-agent}-document
+      object-prefix: rag/document
+      parsed-text-prefix: rag/parsed-text
   security:
     jwt:
       secret-key: ${SMRAG_JWT_SECRET_KEY}

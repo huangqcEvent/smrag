@@ -27,6 +27,7 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <hutool.version>5.8.25</hutool.version>
         <commons-compress.version>1.28.0</commons-compress.version>
+        <minio.version>8.5.17</minio.version>
         <lombok.version>1.18.36</lombok.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
