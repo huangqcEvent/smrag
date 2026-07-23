@@ -1,14 +1,16 @@
 import { createSseParser } from '../utils/sse.js'
 
 export class ChatStreamError extends Error {
-  constructor(message, code) {
+  constructor(message, code, { errorCode, requestToken } = {}) {
     super(message)
     this.name = 'ChatStreamError'
     this.code = code
+    this.errorCode = errorCode
+    this.requestToken = requestToken
   }
 }
 
-const createHttpError = async (response) => {
+const createHttpError = async (response, requestToken) => {
   let payload
   try {
     payload = JSON.parse(await response.text())
@@ -17,7 +19,12 @@ const createHttpError = async (response) => {
   }
 
   const message = payload?.message || payload?.error || `请求失败 (${response.status})`
-  return new ChatStreamError(message, payload?.code || response.status)
+  const payloadCode = Number(payload?.code)
+  const code = Number.isInteger(payloadCode) ? payloadCode : response.status
+  return new ChatStreamError(message, code, {
+    errorCode: payload?.errorCode,
+    requestToken
+  })
 }
 
 export async function postChatStream(data, options = {}) {
@@ -44,13 +51,23 @@ export async function postChatStream(data, options = {}) {
     signal
   })
 
-  if (!response.ok) throw await createHttpError(response)
+  if (!response.ok) throw await createHttpError(response, token)
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('text/event-stream')) {
     await response.body?.cancel().catch(() => {})
-    throw new ChatStreamError('服务器未返回流式响应', response.status)
+    throw new ChatStreamError(
+      '服务器未返回流式响应',
+      response.status,
+      { requestToken: token }
+    )
   }
-  if (!response.body) throw new ChatStreamError('浏览器未收到流式响应', response.status)
+  if (!response.body) {
+    throw new ChatStreamError(
+      '浏览器未收到流式响应',
+      response.status,
+      { requestToken: token }
+    )
+  }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -62,14 +79,25 @@ export async function postChatStream(data, options = {}) {
     try {
       payload = JSON.parse(eventData)
     } catch {
-      throw new ChatStreamError('流式响应格式错误')
+      throw new ChatStreamError(
+        '流式响应格式错误',
+        undefined,
+        { requestToken: token }
+      )
     }
 
     const streamEvent = { ...payload, type: event }
     onEvent(streamEvent)
     if (event === 'done') completed = true
     if (event === 'error') {
-      serverError = new ChatStreamError(payload.message || '生成回答失败', payload.code)
+      serverError = new ChatStreamError(
+        payload.message || '生成回答失败',
+        payload.code,
+        {
+          errorCode: payload.errorCode,
+          requestToken: token
+        }
+      )
     }
   })
 
@@ -95,5 +123,11 @@ export async function postChatStream(data, options = {}) {
   }
 
   if (serverError) throw serverError
-  if (!completed) throw new ChatStreamError('流式响应意外中断')
+  if (!completed) {
+    throw new ChatStreamError(
+      '流式响应意外中断',
+      undefined,
+      { requestToken: token }
+    )
+  }
 }

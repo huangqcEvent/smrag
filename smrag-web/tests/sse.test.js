@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { postChatStream } from '../src/api/chatStream.js'
+import { toUserErrorMessage } from '../src/utils/safeError.js'
 import { createSseParser } from '../src/utils/sse.js'
 
 test('parses CRLF frames and joins multiline data fields', () => {
@@ -84,14 +85,48 @@ test('posts chat data and emits parsed named events from a chunked response', as
 })
 
 test('uses the response message when an HTTP request fails', async () => {
+  const originalLocalStorage = globalThis.localStorage
+  globalThis.localStorage = {
+    getItem: key => key === 'accessToken' ? 'request-token' : null
+  }
   const fetchImpl = async () => new Response(
-    JSON.stringify({ code: 503, message: '模型服务暂不可用' }),
+    JSON.stringify({
+      code: 503,
+      errorCode: 'MODEL_UNAVAILABLE',
+      message: '模型服务暂不可用'
+    }),
     { status: 503, headers: { 'Content-Type': 'application/json' } }
+  )
+
+  try {
+    await assert.rejects(
+      postChatStream({}, { fetchImpl, onEvent() {} }),
+      error =>
+        error.message === '模型服务暂不可用'
+        && error.code === 503
+        && error.errorCode === 'MODEL_UNAVAILABLE'
+        && error.requestToken === 'request-token'
+    )
+  } finally {
+    globalThis.localStorage = originalLocalStorage
+  }
+})
+
+test('does not trust a string HTTP status as a stable business error code', async () => {
+  const fetchImpl = async () => new Response(
+    JSON.stringify({
+      code: '400',
+      message: 'duplicate key constraint user_role_key'
+    }),
+    { status: 400, headers: { 'Content-Type': 'application/json' } }
   )
 
   await assert.rejects(
     postChatStream({}, { fetchImpl, onEvent() {} }),
-    error => error.message === '模型服务暂不可用' && error.code === 503
+    error =>
+      error.code === 400
+      && error.errorCode === undefined
+      && toUserErrorMessage(error, '生成回答失败') === '生成回答失败'
   )
 })
 

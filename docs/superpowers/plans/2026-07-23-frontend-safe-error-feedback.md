@@ -14,9 +14,12 @@
 
 - 创建 `smrag-web/src/utils/safeError.js`：纯函数错误分类、技术文案过滤和安全文案生成。
 - 创建 `smrag-web/src/utils/errorFeedback.js`：Element Plus 错误通知和同一错误对象去重。
+- 创建 `smrag-web/src/utils/sessionExpiry.js`：统一 Axios 与 Fetch/SSE 的
+  401 会话失效处理，并校验请求 Token，避免旧账号的迟到响应退出新账号。
 - 创建 `smrag-web/tests/errorFeedback.test.js`：安全文案和通知去重回归测试。
 - 修改 `smrag-web/src/utils/request.js`：Axios 成功包络和失败响应统一走安全通知。
-- 修改 `smrag-web/src/api/chat.js`、`smrag-web/src/stores/chatStreamState.js`：SSE 弹窗和内联错误统一安全化。
+- 修改 `smrag-web/src/api/*.js`：为每个请求提供操作级兜底，登录接口显式信任凭据错误文案。
+- 修改 `smrag-web/src/api/chat.js`、`smrag-web/src/stores/chatStreamState.js`：SSE 弹窗、401 和内联错误统一安全化。
 - 修改 `smrag-web/src/views/Login.vue`、`Users.vue`、`Knowledge.vue`：页面级错误改用统一通知并传递操作级兜底。
 
 ### 任务 1：建立安全错误策略

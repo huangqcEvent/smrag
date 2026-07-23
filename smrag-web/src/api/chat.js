@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 import { notifyError } from '@/utils/errorFeedback'
+import { handleSessionExpiry } from '@/utils/sessionExpiry'
 import { postChatStream } from './chatStream'
 
 // 聊天接口
@@ -17,6 +18,9 @@ export async function chatStream(data, options = {}) {
   try {
     return await postChatStream(data, options)
   } catch (error) {
+    if (Number(error?.code) === 401) {
+      handleSessionExpiry(error)
+    }
     notifyError(error, '生成回答失败')
     throw error
   }

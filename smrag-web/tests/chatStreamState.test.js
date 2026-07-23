@@ -35,7 +35,7 @@ test('keeps received text when a stream fails or is stopped', () => {
   applyChatStreamEvent(failed, { type: 'error', message: '生成失败' })
 
   assert.equal(failed.answer, '部分回答')
-  assert.equal(failed.error, '生成失败')
+  assert.equal(failed.error, '生成回答失败')
   assert.equal(failed.state, 'error')
 
   const stopped = createPendingChatMessage('问题', 'session-2')

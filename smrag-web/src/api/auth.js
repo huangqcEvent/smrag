@@ -12,6 +12,7 @@ export function login(data) {
     url: '/auth/login',
     method: 'post',
     data,
+    allowServerMessage: true,
     skipAuthRedirect: true,
     errorMessage: '登录失败'
   })

@@ -1,7 +1,6 @@
 import axios from 'axios'
-import router from '@/router'
-import { useAuthStore } from '@/stores/auth'
 import { notifyError } from './errorFeedback'
+import { handleSessionExpiry } from './sessionExpiry'
 
 // 创建axios实例
 const request = axios.create({
@@ -11,6 +10,32 @@ const request = axios.create({
     'Content-Type': 'application/json'
   }
 })
+
+const authorizationTokenOf = config => {
+  const authorization = config?.headers?.Authorization
+    || config?.headers?.get?.('Authorization')
+  return typeof authorization === 'string'
+    ? authorization.replace(/^Bearer\s+/i, '')
+    : ''
+}
+
+const handleAuthenticationError = error => {
+  if (Number(error?.response?.status) !== 401) return false
+
+  if (error.config?.skipAuthRedirect) {
+    if (!error.config?.suppressError) {
+      notifyError(error, error.config?.errorMessage)
+    }
+    return true
+  }
+
+  const requestToken = authorizationTokenOf(error.config)
+  const currentToken = globalThis.localStorage?.getItem('accessToken')
+  if (handleSessionExpiry(error, { requestToken, currentToken })) {
+    notifyError(error, '登录已过期，请重新登录')
+  }
+  return true
+}
 
 // 请求拦截器
 request.interceptors.request.use(
@@ -42,7 +67,10 @@ request.interceptors.response.use(
         data: body
       }
       error.config = response.config
-      if (!response.config?.suppressError) {
+      if (
+        !handleAuthenticationError(error)
+        && !response.config?.suppressError
+      ) {
         notifyError(error, response.config?.errorMessage)
       }
       return Promise.reject(error)
@@ -50,23 +78,10 @@ request.interceptors.response.use(
     return body
   },
   error => {
-    // 401 未登录或 Token 过期
-    if (error.response?.status === 401) {
-      if (error.config?.skipAuthRedirect) {
-        if (!error.config?.suppressError) {
-          notifyError(error, error.config?.errorMessage)
-        }
-      } else {
-        const failedAuthorization = error.config?.headers?.Authorization
-        const currentToken = globalThis.localStorage?.getItem('accessToken')
-        if (failedAuthorization === `Bearer ${currentToken}`) {
-          const authStore = useAuthStore()
-          authStore.logout()
-          router.push('/login')
-          notifyError(error, '登录已过期，请重新登录')
-        }
-      }
-    } else if (!error.config?.suppressError) {
+    if (
+      !handleAuthenticationError(error)
+      && !error.config?.suppressError
+    ) {
       notifyError(error, error.config?.errorMessage)
     }
     return Promise.reject(error)

@@ -20,7 +20,10 @@ test('keeps a safe business error returned by the server', () => {
   assert.equal(toUserErrorMessage({
     response: {
       status: 403,
-      data: { message: '没有文档权限' }
+      data: {
+        errorCode: 'DOCUMENT_FORBIDDEN',
+        message: '没有文档权限'
+      }
     }
   }), '没有文档权限')
 })
@@ -42,6 +45,24 @@ test('does not expose technical exception details', () => {
     new Error('org.postgresql.util.PSQLException: SQL failed'),
     '加载文档失败'
   ), '加载文档失败')
+  assert.equal(toUserErrorMessage(
+    new Error('请求失败 (500)'),
+    '加载文档失败'
+  ), '加载文档失败')
+  assert.equal(toUserErrorMessage(
+    new Error('Internal Server Error'),
+    '加载文档失败'
+  ), '加载文档失败')
+  assert.equal(toUserErrorMessage({
+    response: {
+      status: 400,
+      data: { message: 'Unable to serialize constraint user_role_key' }
+    }
+  }, '保存失败'), '保存失败')
+  assert.equal(toUserErrorMessage(
+    new Error('at UserService.save(UserService.java:42)'),
+    '保存失败'
+  ), '保存失败')
 })
 
 test('uses stable status fallbacks when the server has no business message', () => {
@@ -56,9 +77,12 @@ test('uses stable status fallbacks when the server has no business message', () 
   }), '数据已发生变化，请刷新页面')
 })
 
-test('keeps a safe login failure instead of treating it as an expired session', () => {
+test('keeps an explicitly trusted login failure instead of treating it as an expired session', () => {
   assert.equal(toUserErrorMessage({
-    config: { skipAuthRedirect: true },
+    config: {
+      allowServerMessage: true,
+      skipAuthRedirect: true
+    },
     response: {
       status: 401,
       data: { message: '用户名或密码错误' }

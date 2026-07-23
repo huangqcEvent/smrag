@@ -37,6 +37,8 @@ import 'element-plus/theme-chalk/el-tooltip.css'
 import 'element-plus/theme-chalk/el-upload.css'
 import './style.css'
 import router from './router'
+import { useAuthStore } from './stores/auth'
+import { configureSessionExpiry } from './utils/sessionExpiry'
 import App from './App.vue'
 
 const app = createApp(App)
@@ -61,6 +63,12 @@ const elementComponents = [
 elementComponents.forEach(component => app.use(component))
 
 app.use(pinia)
+configureSessionExpiry(() => {
+  useAuthStore(pinia).logout()
+  if (router.currentRoute.value.path !== '/login') {
+    void router.push('/login')
+  }
+})
 app.use(router)
 app.use(ElLoading)
 

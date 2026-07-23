@@ -3,6 +3,9 @@ const DEFAULT_ERROR_MESSAGE = '当前操作未完成'
 const TECHNICAL_MESSAGE_PATTERNS = [
   /系统繁忙.*稍后重试/i,
   /request failed with status code/i,
+  /^请求失败(?:\s*[\(（]\d{3}[\)）])?$/i,
+  /^internal server error$/i,
+  /^http error \d{3}$/i,
   /^network error$/i,
   /timeout of \d+ms exceeded/i,
   /(?:java|javax|org|com)\.[\w.$]*(?:Exception|Error)/i,
@@ -37,6 +40,14 @@ const serverMessageOf = error => {
   return text(error?.message)
 }
 
+const hasTrustedServerMessage = error => {
+  if (error?.config?.allowServerMessage === true) return true
+  return Boolean(
+    text(error?.response?.data?.errorCode)
+    || text(error?.errorCode)
+  )
+}
+
 const isTimeout = error =>
   error?.code === 'ECONNABORTED'
   || error?.code === 'ETIMEDOUT'
@@ -57,7 +68,8 @@ export function isTechnicalErrorMessage(message) {
 
 export function isSilentError(error) {
   if (error === 'cancel' || error === 'close') return true
-  return error?.name === 'AbortError'
+  return error?.suppressUserFeedback === true
+    || error?.name === 'AbortError'
     || error?.name === 'CanceledError'
     || error?.code === 'ERR_CANCELED'
 }
@@ -79,7 +91,11 @@ export function toUserErrorMessage(
   if (status != null && status >= 500) return operationFallback
 
   const serverMessage = serverMessageOf(error)
-  if (serverMessage && !isTechnicalErrorMessage(serverMessage)) {
+  if (
+    hasTrustedServerMessage(error)
+    && serverMessage
+    && !isTechnicalErrorMessage(serverMessage)
+  ) {
     return serverMessage
   }
 
