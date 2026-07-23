@@ -33,7 +33,7 @@ class RagSchemaMigrationTest {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
-                .target("6")
+                .target("7")
                 .load()
                 .migrate();
             insertAclBackfillFixtures(postgres);
@@ -72,8 +72,16 @@ class RagSchemaMigrationTest {
             statement.executeUpdate("""
                 INSERT INTO rag_vector_store (content, metadata)
                 VALUES
-                    ('granted', '{"documentId":9001}'),
-                    ('denied', '{"documentId":9002}')
+                    (
+                        'granted',
+                        '{"documentId":9001,"aclVersion":2,"aclDenied":false,'
+                        '"aclRole_ADMIN":true,"aclRoleId_999":true}'
+                    ),
+                    (
+                        'denied',
+                        '{"documentId":9002,"aclVersion":5,"aclDenied":false,'
+                        '"aclRole_STALE":true,"aclRoleId_999":true}'
+                    )
                 """);
         }
     }
@@ -86,7 +94,14 @@ class RagSchemaMigrationTest {
                      metadata->>'documentId' AS document_id,
                      metadata->>'aclVersion' AS acl_version,
                      metadata->>'aclDenied' AS acl_denied,
-                     metadata->>'aclRole_ADMIN' AS admin_role
+                     metadata->>(
+                         'aclRoleId_' || (
+                             SELECT id::text FROM sys_role WHERE role_code = 'ADMIN'
+                         )
+                     ) AS admin_role,
+                     metadata->>'aclRole_ADMIN' AS legacy_admin_role,
+                     metadata->>'aclRole_STALE' AS legacy_stale_role,
+                     metadata->>'aclRoleId_999' AS stale_role_id
                  FROM rag_vector_store
                  WHERE metadata->>'documentId' IN ('9001', '9002')
                  ORDER BY metadata->>'documentId'
@@ -96,11 +111,15 @@ class RagSchemaMigrationTest {
             assertThat(rows.getString("acl_version")).isEqualTo("2");
             assertThat(rows.getString("acl_denied")).isEqualTo("false");
             assertThat(rows.getString("admin_role")).isEqualTo("true");
+            assertThat(rows.getString("legacy_admin_role")).isNull();
+            assertThat(rows.getString("stale_role_id")).isNull();
             assertThat(rows.next()).isTrue();
             assertThat(rows.getString("document_id")).isEqualTo("9002");
             assertThat(rows.getString("acl_version")).isEqualTo("5");
             assertThat(rows.getString("acl_denied")).isEqualTo("true");
             assertThat(rows.getString("admin_role")).isNull();
+            assertThat(rows.getString("legacy_stale_role")).isNull();
+            assertThat(rows.getString("stale_role_id")).isNull();
             assertThat(rows.next()).isFalse();
         }
     }
