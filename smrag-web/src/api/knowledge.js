@@ -48,6 +48,7 @@ export function getDocumentFile(id) {
   return request({
     url: `/knowledge/${id}/file`,
     method: 'get',
-    responseType: 'blob'
+    responseType: 'blob',
+    timeout: 120000
   })
 }
