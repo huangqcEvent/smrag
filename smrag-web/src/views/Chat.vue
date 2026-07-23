@@ -127,7 +127,13 @@
               <ol>
                 <li v-for="citation in item.citations" :key="citation.vectorId">
                   <div class="citation-heading">
-                    <strong>{{ citation.documentName || `文档 ${citation.documentId}` }}</strong>
+                    <button
+                      type="button"
+                      class="citation-document-link"
+                      @click="openCitation(citation)"
+                    >
+                      {{ citation.documentName || `文档 ${citation.documentId}` }}
+                    </button>
                     <span v-if="citation.pageNumber != null">第 {{ citation.pageNumber }} 页</span>
                     <span v-if="citation.score != null">
                       相关度 {{ formatScore(citation.score) }}
@@ -200,6 +206,7 @@
       </button>
     </transition>
     </div>
+    <DocumentViewer :document="viewerDocument" @close="viewerDocument = null" />
   </section>
 </template>
 
@@ -220,11 +227,13 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownContent from '@/components/MarkdownContent.vue'
+import DocumentViewer from '@/components/DocumentViewer.vue'
 import { useChatStore } from '@/stores/chat'
 import { resetScrollAfterHistoryLoad, shouldAutoScroll } from '@/utils/chatScrollState'
 
 const chatStore = useChatStore()
 const question = ref('')
+const viewerDocument = ref(null)
 const knowledgeBaseId = ref('default')
 const messagesContainer = ref(null)
 const { chatHistory, loading, sessionList, currentSessionId } = storeToRefs(chatStore)
@@ -375,6 +384,13 @@ const formatTime = (time) => {
 }
 
 const formatScore = (score) => `${Math.round(Number(score) * 100)}%`
+const openCitation = (citation) => {
+  viewerDocument.value = {
+    id: citation.documentId,
+    name: citation.documentName || `文档 ${citation.documentId}`,
+    fileType: citation.documentType
+  }
+}
 
 const isGenerating = (item) => item.state === 'pending' || item.state === 'streaming'
 
@@ -801,6 +817,26 @@ const liveStatus = computed(() => {
   gap: 6px 12px;
   margin-bottom: 5px;
   font-size: 0.78rem;
+}
+
+.citation-document-link {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.citation-document-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .citation-heading strong {

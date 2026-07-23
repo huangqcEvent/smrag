@@ -39,3 +39,11 @@ export function setDocumentPermissions(id, roleCodes) {
     permissions: roleCodes.map(roleCode => ({ roleCode, canRead: true }))
   })
 }
+
+export function getDocumentFile(id) {
+  return request({
+    url: `/knowledge/${id}/file`,
+    method: 'get',
+    responseType: 'blob'
+  })
+}

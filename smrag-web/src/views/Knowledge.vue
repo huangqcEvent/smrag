@@ -212,8 +212,19 @@
             <el-table-column prop="createTime" label="创建时间" width="180">
               <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
             </el-table-column>
-            <el-table-column label="" width="64" align="right">
+            <el-table-column label="操作" width="144" align="right">
               <template #default="{ row }">
+                <el-tooltip :content="row.accessible ? '查看原文档' : '你没有查看该文档的权限'" placement="left">
+                  <el-button
+                    text
+                    circle
+                    :disabled="!row.accessible"
+                    :aria-label="row.accessible ? '查看原文档' : '无权查看原文档'"
+                    @click="viewerDocument = row"
+                  >
+                    <el-icon><View /></el-icon>
+                  </el-button>
+                </el-tooltip>
                 <el-tooltip v-if="authStore.isAdmin" content="编辑权限" placement="left">
                   <el-button text circle aria-label="编辑文档权限" @click="openPermissionDialog(row)">
                     <el-icon><Edit /></el-icon>
@@ -249,17 +260,19 @@
         <el-button type="primary" :loading="savingPermissions" @click="savePermissions">保存</el-button>
       </template>
     </el-dialog>
+    <DocumentViewer :document="viewerDocument" @close="viewerDocument = null" />
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Delete, Edit, Refresh } from '@element-plus/icons-vue'
+import { Delete, Edit, Refresh, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useAuthStore } from '@/stores/auth'
 import SkeletonTable from '@/components/SkeletonTable.vue'
+import DocumentViewer from '@/components/DocumentViewer.vue'
 import { getRoles } from '@/api/role'
 
 const knowledgeStore = useKnowledgeStore()
@@ -273,6 +286,7 @@ const permissionDialogVisible = ref(false)
 const editingDocument = ref(null)
 const editingRoleCodes = ref([])
 const savingPermissions = ref(false)
+const viewerDocument = ref(null)
 const { documents, loading, knowledgeBaseId } = storeToRefs(knowledgeStore)
 const { fetchDocuments, upload, remove, updatePermissions } = knowledgeStore
 

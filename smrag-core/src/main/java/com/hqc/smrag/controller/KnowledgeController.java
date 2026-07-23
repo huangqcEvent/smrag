@@ -5,12 +5,18 @@ import com.hqc.smrag.dto.SetDocPermissionRequest;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.knowledge.DocumentService;
+import com.hqc.smrag.service.knowledge.DocumentFileService;
 import com.hqc.smrag.vo.DocumentVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
@@ -38,6 +44,23 @@ public class KnowledgeController {
 
     private final DocumentService documentService;
     private final DocPermissionService docPermissionService;
+    private final DocumentFileService documentFileService;
+
+    @GetMapping("/{id}/file")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<byte[]> file(
+        @PathVariable Long id,
+        @AuthenticationPrincipal Long userId
+    ) {
+        DocumentFileService.DocumentFile file = documentFileService.read(id, userId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType(file.contentType()));
+        headers.setContentDisposition(ContentDisposition.inline()
+            .filename(file.fileName(), StandardCharsets.UTF_8)
+            .build());
+        headers.setContentLength(file.content().length);
+        return ResponseEntity.ok().headers(headers).body(file.content());
+    }
 
     /**
      * 上传知识库文档（仅管理员）

@@ -3,6 +3,7 @@ package com.hqc.smrag.controller;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.knowledge.DocumentService;
+import com.hqc.smrag.service.knowledge.DocumentFileService;
 import com.hqc.smrag.vo.DocumentVO;
 import com.hqc.smrag.vo.RoleVO;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,8 @@ class KnowledgePermissionListTest {
     void returnsAllDocumentsWithCurrentAccessAndGrantedRoles() {
         DocumentService documentService = mock(DocumentService.class);
         DocPermissionService permissionService = mock(DocPermissionService.class);
-        KnowledgeController controller = new KnowledgeController(documentService, permissionService);
+        KnowledgeController controller = new KnowledgeController(
+            documentService, permissionService, mock(DocumentFileService.class));
         KnowledgeDocument readable = document(1L, "readable.pdf");
         KnowledgeDocument locked = document(2L, "locked.pdf");
         RoleVO userRole = new RoleVO(2L, "USER", "普通用户", null);
