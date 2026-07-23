@@ -1,15 +1,14 @@
 import request from '@/utils/request'
-import { MAIN_KNOWLEDGE_BASE } from '@/constants/knowledgeBase'
 
 // 上传知识文档
 export function uploadDocument(
   file,
-  knowledgeBaseId = MAIN_KNOWLEDGE_BASE.code,
-  roles = ['ADMIN', 'USER']
+  knowledgeBaseCode,
+  roles
 ) {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('knowledgeBaseId', knowledgeBaseId)
+  formData.append('knowledgeBaseCode', knowledgeBaseCode)
   formData.append('roles', roles.join(','))
   return request({
     url: '/knowledge/upload',
@@ -22,20 +21,20 @@ export function uploadDocument(
 }
 
 // 获取文档列表
-export function getDocumentList(knowledgeBaseId = MAIN_KNOWLEDGE_BASE.code) {
+export function getDocumentList(knowledgeBaseCode) {
   return request({
     url: '/knowledge/list',
     method: 'get',
-    params: { knowledgeBaseId }
+    params: { knowledgeBaseCode }
   })
 }
 
 // 删除文档
-export function deleteDocument(id, knowledgeBaseId = MAIN_KNOWLEDGE_BASE.code) {
+export function deleteDocument(id, knowledgeBaseCode) {
   return request({
     url: `/knowledge/${id}`,
     method: 'delete',
-    params: { knowledgeBaseId }
+    params: { knowledgeBaseCode }
   })
 }
 
@@ -50,12 +49,5 @@ export function getDocumentFile(id) {
     url: `/knowledge/${id}/file`,
     method: 'get',
     responseType: 'blob'
-  })
-}
-
-export function getKnowledgeBases() {
-  return request({
-    url: '/knowledge-bases',
-    method: 'get'
   })
 }

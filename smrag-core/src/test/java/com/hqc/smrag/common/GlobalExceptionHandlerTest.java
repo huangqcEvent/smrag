@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.access.AccessDeniedException;
+import com.hqc.smrag.exception.DomainNotFoundException;
 
 import java.util.Map;
 
@@ -62,6 +64,27 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.code").value(400));
     }
 
+    @Test
+    void preservesDomainErrorDetailsAndStatuses() throws Exception {
+        var mvc = standaloneSetup(new PostOnlyController())
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build();
+
+        mvc.perform(post("/test/invalid"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("知识库编码已存在"));
+        mvc.perform(post("/test/forbidden"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value("没有文档权限"));
+        mvc.perform(post("/test/conflict"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("知识库中仍有文档"));
+        mvc.perform(post("/test/not-found"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("KNOWLEDGE_BASE_NOT_FOUND"))
+            .andExpect(jsonPath("$.details.code").value("missing"));
+    }
+
     @RestController
     @RequestMapping("/test")
     static class PostOnlyController {
@@ -79,6 +102,30 @@ class GlobalExceptionHandlerTest {
         @PostMapping("/json")
         Result<Void> json(@RequestBody Map<String, Object> body) {
             return Result.success();
+        }
+
+        @PostMapping("/invalid")
+        Result<Void> invalid() {
+            throw new IllegalArgumentException("知识库编码已存在");
+        }
+
+        @PostMapping("/forbidden")
+        Result<Void> forbidden() {
+            throw new AccessDeniedException("没有文档权限");
+        }
+
+        @PostMapping("/conflict")
+        Result<Void> conflict() {
+            throw new IllegalStateException("知识库中仍有文档");
+        }
+
+        @PostMapping("/not-found")
+        Result<Void> notFound() {
+            throw new DomainNotFoundException(
+                "KNOWLEDGE_BASE_NOT_FOUND",
+                "知识库不存在",
+                Map.of("code", "missing")
+            );
         }
     }
 }

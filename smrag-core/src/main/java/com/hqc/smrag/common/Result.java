@@ -44,6 +44,17 @@ public class Result<T> {
     private String message;
 
     /**
+     * Stable machine-readable domain error code. Null for successful responses
+     * and legacy errors that are not tied to a domain rule.
+     */
+    private String errorCode;
+
+    /**
+     * Optional structured context such as document counts or conflicting roles.
+     */
+    private Object details;
+
+    /**
      * 响应数据
      * <p>
      * 泛型类型，可以是任意 Java 对象。
@@ -94,9 +105,20 @@ public class Result<T> {
      * @return 统一响应结果
      */
     public static <T> Result<T> error(Integer code, String message) {
+        return error(code, null, message, null);
+    }
+
+    public static <T> Result<T> error(
+        Integer code,
+        String errorCode,
+        String message,
+        Object details
+    ) {
         Result<T> result = new Result<>();
         result.setCode(code);
+        result.setErrorCode(errorCode);
         result.setMessage(message);
+        result.setDetails(details);
         return result;
     }
 }

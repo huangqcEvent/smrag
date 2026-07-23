@@ -27,4 +27,17 @@ public interface SysUserRoleMapper extends BaseMapper<SysUserRole> {
         WHERE ur.user_id = #{userId}
         """)
     List<String> selectRoleCodesByUserId(@Param("userId") Long userId);
+
+    @Select("""
+        SELECT EXISTS(
+            SELECT 1
+            FROM sys_user_role ur
+            INNER JOIN sys_role r ON r.id = ur.role_id
+            WHERE ur.user_id = #{userId} AND r.role_code = #{roleCode}
+        )
+        """)
+    boolean userHasRole(
+        @Param("userId") Long userId,
+        @Param("roleCode") String roleCode
+    );
 }

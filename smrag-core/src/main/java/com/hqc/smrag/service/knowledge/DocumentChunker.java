@@ -75,7 +75,7 @@ public class DocumentChunker {
      */
     public List<Document> chunk(
         List<Document> sourceDocuments,
-        String knowledgeBaseId,
+        Long knowledgeBaseId,
         long documentId,
         String documentName,
         String documentType,
@@ -113,7 +113,7 @@ public class DocumentChunker {
             Map<String, Object> metadata = new HashMap<>(chunk.getMetadata());
             metadata.put("chunkIndex", chunkIndex);
             UUID vectorId = idGenerator.generate(
-                knowledgeBaseId,
+                String.valueOf(knowledgeBaseId),
                 documentId,
                 documentVersion,
                 chunkIndex
@@ -140,7 +140,7 @@ public class DocumentChunker {
      */
     private Document enrich(
         Document source,
-        String knowledgeBaseId,
+        Long knowledgeBaseId,
         long documentId,
         String documentName,
         String documentType,
@@ -162,9 +162,7 @@ public class DocumentChunker {
         metadata.put("documentVersion", documentVersion);
         metadata.put("documentStatus", documentStatus);
         metadata.put("checksum", checksum);
-        metadata.put("aclVersion", aclVersion);
-        metadata.put("aclDenied", false);
-        roleIds.forEach(roleId -> metadata.put("aclRoleId_" + roleId, true));
+        metadata.put("documentAclVersion", aclVersion);
         return new Document(source.getText(), metadata);
     }
 }

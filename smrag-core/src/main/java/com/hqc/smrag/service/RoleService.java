@@ -8,6 +8,7 @@ import com.hqc.smrag.entity.SysUserRole;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.SysRoleMapper;
 import com.hqc.smrag.mapper.SysUserRoleMapper;
+import com.hqc.smrag.mapper.KnowledgeBaseRoleMapper;
 import com.hqc.smrag.vo.RoleVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class RoleService {
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final DocPermissionMapper docPermissionMapper;
+    private final KnowledgeBaseRoleMapper knowledgeBaseRoleMapper;
 
     public List<RoleVO> list() {
         return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
@@ -69,6 +71,9 @@ public class RoleService {
         }
         if (docPermissionMapper.countByRoleId(id) > 0) {
             throw new IllegalStateException("角色仍被文档权限使用，请先调整文档权限");
+        }
+        if (knowledgeBaseRoleMapper.countByRoleId(id) > 0) {
+            throw new IllegalStateException("角色仍被知识库权限使用，请先调整知识库权限");
         }
         roleMapper.deleteById(id);
     }

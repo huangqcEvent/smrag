@@ -54,7 +54,13 @@ class DocumentIngestionPersistenceServiceTest {
         );
         when(documentMapper.update(any(), any())).thenReturn(1);
 
-        service.saveCompleted(42L, 2, PROCESSING_TOKEN, List.of(chunk));
+        service.saveCompleted(
+            42L,
+            2,
+            PROCESSING_TOKEN,
+            List.of(chunk),
+            "rag/parsed-text/42/v2.txt"
+        );
 
         ArgumentCaptor<Collection> chunksCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(chunkMapper).insert(chunksCaptor.capture(), eq(500));
@@ -73,7 +79,14 @@ class DocumentIngestionPersistenceServiceTest {
     @Test
     void usesIndependentTransactionForFailureStatus() throws Exception {
         Method saveCompleted = DocumentIngestionPersistenceService.class
-            .getMethod("saveCompleted", long.class, int.class, UUID.class, List.class);
+            .getMethod(
+                "saveCompleted",
+                long.class,
+                int.class,
+                UUID.class,
+                List.class,
+                String.class
+            );
         Method markFailed = DocumentIngestionPersistenceService.class
             .getMethod(
                 "markFailedInNewTransaction",

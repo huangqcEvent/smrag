@@ -65,7 +65,9 @@ public class CitationAssembler {
             citations.add(new CitationDTO(
                 document.getId(),
                 asLong(metadata.get("documentId")),
-                asString(metadata.get("knowledgeBaseId")),
+                asLong(metadata.get("knowledgeBaseId")),
+                asString(metadata.get("knowledgeBaseCode")),
+                asString(metadata.get("knowledgeBaseName")),
                 asString(metadata.get("documentName")),
                 asInteger(metadata.get("chunkIndex")),
                 asInteger(metadata.get("pageNumber")),

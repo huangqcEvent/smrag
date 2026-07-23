@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.entity.KnowledgeChunk;
 import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
@@ -58,9 +59,12 @@ class DocumentServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void configureKnowledgeBase() {
-        when(knowledgeBaseService.requireActiveCode(any()))
-            .thenAnswer(invocation ->
-                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
+        KnowledgeBase base = new KnowledgeBase();
+        base.setId(1L);
+        base.setCode("research");
+        base.setStatus("ACTIVE");
+        when(knowledgeBaseService.requireActive(any())).thenReturn(base);
+        when(knowledgeBaseService.requireByCode(any())).thenReturn(base);
     }
 
     @Test
@@ -73,7 +77,8 @@ class DocumentServiceTest {
             new byte[0]
         );
 
-        assertThatThrownBy(() -> documentService.uploadDocument(file))
+        assertThatThrownBy(() -> documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("文件不能为空");
     }
@@ -88,7 +93,8 @@ class DocumentServiceTest {
             "content".getBytes(StandardCharsets.UTF_8)
         );
 
-        assertThatThrownBy(() -> documentService.uploadDocument(file))
+        assertThatThrownBy(() -> documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("不支持的文件类型");
     }
@@ -109,7 +115,8 @@ class DocumentServiceTest {
             "content".getBytes(StandardCharsets.UTF_8)
         );
 
-        documentService.uploadDocument(file);
+        documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER"));
 
         ArgumentCaptor<KnowledgeDocument> documentCaptor = ArgumentCaptor.forClass(KnowledgeDocument.class);
         verify(uploadPersistenceService).createPlaceholder(documentCaptor.capture());
@@ -119,7 +126,7 @@ class DocumentServiceTest {
         assertThat(document.getStorageType()).isEqualTo("MINIO");
         assertThat(document.getFileType()).isEqualTo("PDF");
         assertThat(document.getStatus()).isEqualTo(DocumentStatus.PENDING.name());
-        assertThat(document.getKnowledgeBaseId()).isEqualTo("company-main");
+        assertThat(document.getKnowledgeBaseId()).isEqualTo(1L);
         assertThat(document.getVersion()).isEqualTo(1);
         assertThat(document.getProcessingToken()).isNotNull();
         verify(uploadPersistenceService).completeUpload(
@@ -142,7 +149,8 @@ class DocumentServiceTest {
             "four".getBytes(StandardCharsets.UTF_8)
         );
 
-        assertThatThrownBy(() -> documentService.uploadDocument(file))
+        assertThatThrownBy(() -> documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("文件大小");
         verify(uploadPersistenceService, never())
@@ -164,7 +172,8 @@ class DocumentServiceTest {
             "content".getBytes(StandardCharsets.UTF_8)
         );
 
-        assertThatThrownBy(() -> documentService.uploadDocument(file))
+        assertThatThrownBy(() -> documentService.uploadDocument(
+            file, "research", List.of("ADMIN", "USER")))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("transaction failed");
         verify(documentStorage).delete(
@@ -176,7 +185,7 @@ class DocumentServiceTest {
     void deleteRemovesVectorsBeforeRelationalRecords() {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("company-main");
+        document.setKnowledgeBaseId(1L);
         document.setFilePath(uploadDir.resolve("document.pdf").toString());
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
@@ -186,7 +195,7 @@ class DocumentServiceTest {
         when(documentMapper.update(any(), any())).thenReturn(1);
         when(chunkMapper.selectList(any())).thenReturn(List.of(firstChunk, secondChunk));
 
-        service().deleteDocument(42L);
+        service().deleteDocument(42L, "research");
 
         InOrder order = inOrder(vectorStore, chunkMapper, documentMapper);
         order.verify(vectorStore).delete(List.of(first.toString(), second.toString()));
@@ -198,7 +207,7 @@ class DocumentServiceTest {
     void deleteKeepsRelationalRecordsWhenVectorDeletionFails() {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("company-main");
+        document.setKnowledgeBaseId(1L);
         document.setFilePath(uploadDir.resolve("document.pdf").toString());
         UUID vectorId = UUID.randomUUID();
         when(documentMapper.selectById(42L)).thenReturn(document);
@@ -207,7 +216,7 @@ class DocumentServiceTest {
         doThrow(new IllegalStateException("vector delete failed"))
             .when(vectorStore).delete(List.of(vectorId.toString()));
 
-        assertThatThrownBy(() -> service().deleteDocument(42L))
+        assertThatThrownBy(() -> service().deleteDocument(42L, "research"))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("vector delete failed");
         verify(chunkMapper, never()).delete(any());

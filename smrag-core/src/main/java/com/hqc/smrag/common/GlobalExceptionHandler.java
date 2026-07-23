@@ -1,6 +1,8 @@
 package com.hqc.smrag.common;
 
 import com.hqc.smrag.exception.AiServiceException;
+import com.hqc.smrag.exception.CodedApiError;
+import com.hqc.smrag.exception.DomainNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.security.access.AccessDeniedException;
 
 /**
  * \u5168\u5c40\u5f02\u5e38\u5904\u7406\u5668
@@ -33,6 +36,13 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(DomainNotFoundException.class)
+    public Result<Void> handleNotFound(DomainNotFoundException exception) {
+        log.warn("Requested resource was not found: {}", exception.getMessage());
+        return codedError(404, exception);
+    }
 
     /**
      * \u5904\u7406\u53c2\u6570\u6821\u9a8c\u5f02\u5e38
@@ -58,12 +68,41 @@ public class GlobalExceptionHandler {
         ConstraintViolationException.class,
         HttpMessageNotReadableException.class,
         MultipartException.class,
-        MissingServletRequestPartException.class,
-        IllegalArgumentException.class
+        MissingServletRequestPartException.class
     })
     public Result<Void> handleValidation(Exception exception) {
         log.warn("Request validation failed: {}", exception.getClass().getSimpleName());
         return Result.error(400, "\u8bf7\u6c42\u53c2\u6570\u4e0d\u5408\u6cd5");
+    }
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result<Void> handleIllegalArgument(IllegalArgumentException exception) {
+        log.warn("Request argument rejected: {}", exception.getMessage());
+        if (exception instanceof CodedApiError coded) {
+            return codedError(400, coded);
+        }
+        return Result.error(400, messageOrDefault(exception, "请求参数不合法"));
+    }
+
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    @ExceptionHandler(AccessDeniedException.class)
+    public Result<Void> handleAccessDenied(AccessDeniedException exception) {
+        log.warn("Request access denied: {}", exception.getMessage());
+        if (exception instanceof CodedApiError coded) {
+            return codedError(403, coded);
+        }
+        return Result.error(403, messageOrDefault(exception, "没有权限执行该操作"));
+    }
+
+    @ResponseStatus(HttpStatus.CONFLICT)
+    @ExceptionHandler(IllegalStateException.class)
+    public Result<Void> handleConflict(IllegalStateException exception) {
+        log.warn("Request conflicts with current state: {}", exception.getMessage());
+        if (exception instanceof CodedApiError coded) {
+            return codedError(409, coded);
+        }
+        return Result.error(409, messageOrDefault(exception, "资源状态已发生变化"));
     }
 
     /**
@@ -107,5 +146,21 @@ public class GlobalExceptionHandler {
     public Result<Void> handleUnexpected(Exception exception) {
         log.error("Unexpected server error", exception);
         return Result.error(500, "\u7cfb\u7edf\u7e41\u5fd9\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5");
+    }
+
+    private String messageOrDefault(Exception exception, String fallback) {
+        return exception.getMessage() == null || exception.getMessage().isBlank()
+            ? fallback
+            : exception.getMessage();
+    }
+
+    private Result<Void> codedError(int status, CodedApiError error) {
+        Exception exception = (Exception) error;
+        return Result.error(
+            status,
+            error.errorCode(),
+            messageOrDefault(exception, "请求处理失败"),
+            error.details()
+        );
     }
 }

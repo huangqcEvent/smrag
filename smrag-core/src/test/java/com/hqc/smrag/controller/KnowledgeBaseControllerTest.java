@@ -13,16 +13,14 @@ import static org.mockito.Mockito.when;
 class KnowledgeBaseControllerTest {
 
     @Test
-    void listsActiveKnowledgeBases() {
+    void listsOnlyBasesAccessibleToCurrentUser() {
         KnowledgeBaseService service = mock(KnowledgeBaseService.class);
-        when(service.listActive()).thenReturn(List.of(
-            new KnowledgeBaseVO("company-main", "企业知识库", "企业内部统一知识库")
-        ));
+        KnowledgeBaseVO resource = new KnowledgeBaseVO(
+            12L, "research", "投研知识库", "研究资料", "ACTIVE");
+        when(service.listAccessible(7L)).thenReturn(List.of(resource));
 
         KnowledgeBaseController controller = new KnowledgeBaseController(service);
 
-        assertThat(controller.list().getData()).containsExactly(
-            new KnowledgeBaseVO("company-main", "企业知识库", "企业内部统一知识库")
-        );
+        assertThat(controller.list(7L).getData()).containsExactly(resource);
     }
 }

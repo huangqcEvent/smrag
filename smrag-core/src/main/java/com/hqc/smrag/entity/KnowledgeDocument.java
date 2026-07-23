@@ -76,7 +76,7 @@ public class KnowledgeDocument {
     /**
      * 知识库ID
      */
-    private String knowledgeBaseId;
+    private Long knowledgeBaseId;
 
     /**
      * 文件校验和（SHA-256）

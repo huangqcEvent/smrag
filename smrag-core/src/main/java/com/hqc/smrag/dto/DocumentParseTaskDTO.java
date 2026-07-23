@@ -1,6 +1,5 @@
 package com.hqc.smrag.dto;
 
-import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -51,7 +50,7 @@ public class DocumentParseTaskDTO {
     /**
      * 知识库ID
      */
-    private String knowledgeBaseId;
+    private Long knowledgeBaseId;
 
     /**
      * 文档版本号
@@ -73,7 +72,7 @@ public class DocumentParseTaskDTO {
     /**
      * 简化构造函数
      * <p>
-     * 用于测试或简化场景，默认知识库 code 为 "company-main"，版本号为 1。
+     * 用于测试或简化场景，版本号为 1。
      *
      * @param documentId 文档ID
      * @param filePath   文件路径
@@ -85,7 +84,7 @@ public class DocumentParseTaskDTO {
             filePath,
             null,
             fileType,
-            KnowledgeBaseDefaults.MAIN_CODE,
+            null,
             1,
             null,
             null
@@ -96,7 +95,7 @@ public class DocumentParseTaskDTO {
         Long documentId,
         String filePath,
         String fileType,
-        String knowledgeBaseId,
+        Long knowledgeBaseId,
         Integer version,
         String checksum,
         UUID processingToken

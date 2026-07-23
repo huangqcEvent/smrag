@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 聊天请求 DTO
  * <p>
@@ -13,7 +15,7 @@ import lombok.Data;
  *     <li>sessionId：会话ID，用于多轮对话</li>
  *     <li>question：用户问题</li>
  *     <li>userId：用户ID（可选）</li>
- *     <li>knowledgeBaseId：知识库ID（可选）</li>
+ *     <li>knowledgeBaseCodes：本次检索的 1 到 5 个知识库 code</li>
  *     <li>documentId：文档ID（可选），限定检索范围</li>
  * </ul>
  *
@@ -49,12 +51,12 @@ public class ChatRequestDTO {
     private Long userId;
 
     /**
-     * 知识库ID（可选）
+     * 知识库 code（必填）
      * <p>
-     * 指定检索的知识库稳定 code，默认为 "company-main"。
+     * 指定本次检索的知识库稳定 code，必须显式选择 1 到 5 个。
      */
-    @Size(max = 128)
-    private String knowledgeBaseId;
+    @Size(min = 1, max = 5)
+    private List<@NotBlank @Size(max = 64) String> knowledgeBaseCodes;
 
     /**
      * 文档ID（可选）

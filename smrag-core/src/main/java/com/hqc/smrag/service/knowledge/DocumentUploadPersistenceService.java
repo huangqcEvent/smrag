@@ -6,7 +6,9 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.dto.SetDocPermissionRequest;
 import com.hqc.smrag.entity.DocumentIngestionOutbox;
 import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
 import com.hqc.smrag.mapper.DocumentIngestionOutboxMapper;
+import com.hqc.smrag.mapper.KnowledgeBaseMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
 import org.springframework.stereotype.Service;
@@ -23,16 +25,19 @@ public class DocumentUploadPersistenceService {
     private final KnowledgeDocumentMapper documentMapper;
     private final DocumentIngestionOutboxMapper outboxMapper;
     private final DocPermissionService permissionService;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
 
     @Autowired
     public DocumentUploadPersistenceService(
         KnowledgeDocumentMapper documentMapper,
         DocumentIngestionOutboxMapper outboxMapper,
-        DocPermissionService permissionService
+        DocPermissionService permissionService,
+        KnowledgeBaseMapper knowledgeBaseMapper
     ) {
         this.documentMapper = documentMapper;
         this.outboxMapper = outboxMapper;
         this.permissionService = permissionService;
+        this.knowledgeBaseMapper = knowledgeBaseMapper;
     }
 
     @Transactional
@@ -48,6 +53,21 @@ public class DocumentUploadPersistenceService {
         String checksum,
         List<String> roleCodes
     ) {
+        KnowledgeDocument observed = documentMapper.selectById(documentId);
+        if (observed == null) {
+            throw new IllegalArgumentException("文档不存在");
+        }
+        KnowledgeBase knowledgeBase =
+            knowledgeBaseMapper.selectByIdForUpdate(observed.getKnowledgeBaseId());
+        if (knowledgeBase == null
+            || !KnowledgeBaseService.ACTIVE.equals(knowledgeBase.getStatus())) {
+            throw new IllegalStateException("知识库已停用，上传已取消");
+        }
+        KnowledgeDocument locked = documentMapper.selectByIdForUpdate(documentId);
+        if (locked == null
+            || !observed.getKnowledgeBaseId().equals(locked.getKnowledgeBaseId())) {
+            throw new IllegalStateException("文档状态已变化，请重新上传");
+        }
         documentMapper.update(
             null,
             Wrappers.<KnowledgeDocument>lambdaUpdate()

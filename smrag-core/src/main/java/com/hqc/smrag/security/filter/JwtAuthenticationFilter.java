@@ -1,6 +1,7 @@
 package com.hqc.smrag.security.filter;
 
 import com.hqc.smrag.security.service.JwtService;
+import com.hqc.smrag.mapper.SysUserRoleMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final SysUserRoleMapper userRoleMapper;
 
     @Override
     protected void doFilterInternal(
@@ -50,7 +52,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 解析 Token 获取用户信息
                 Long userId = jwtService.getUserId(token);
                 String username = jwtService.getUsername(token);
-                List<String> roles = jwtService.getRoles(token);
+                // JWT only proves identity. Roles are loaded from the database on every
+                // request so permission changes take effect immediately.
+                List<String> roles = userRoleMapper.selectRoleCodesByUserId(userId);
 
                 // 构建权限列表
                 List<SimpleGrantedAuthority> authorities = roles.stream()

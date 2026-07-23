@@ -127,21 +127,6 @@ public class DocumentService {
     }
 
     /**
-     * 上传文档到默认知识库
-     *
-     * @param file 上传的文件
-     * @return 文档ID
-     * @throws IOException 文件处理异常
-     */
-    public Long uploadDocument(MultipartFile file) throws IOException {
-        return uploadDocument(
-            file,
-            KnowledgeBaseDefaults.MAIN_CODE,
-            List.of("ADMIN", "USER")
-        );
-    }
-
-    /**
      * 上传文档到指定知识库
      * <p>
      * 处理流程：
@@ -158,10 +143,6 @@ public class DocumentService {
      * @throws IOException              文件处理异常
      * @throws IllegalArgumentException 文件校验失败时抛出
      */
-    public Long uploadDocument(MultipartFile file, String knowledgeBaseId) throws IOException {
-        return uploadDocument(file, knowledgeBaseId, List.of("ADMIN", "USER"));
-    }
-
     public Long uploadDocument(
         MultipartFile file,
         String knowledgeBaseId,
@@ -178,8 +159,8 @@ public class DocumentService {
         if (normalizedRoles.isEmpty()) {
             throw new IllegalArgumentException("文档至少需要一个可读角色");
         }
-        String normalizedKnowledgeBaseId =
-            knowledgeBaseService.requireActiveCode(knowledgeBaseId);
+        Long normalizedKnowledgeBaseId =
+            knowledgeBaseService.requireActive(knowledgeBaseId).getId();
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String fileType = getFileType(fileName);
         if ("UNKNOWN".equals(fileType)) {
@@ -247,35 +228,17 @@ public class DocumentService {
     }
 
     /**
-     * 查询默认知识库的文档列表
-     *
-     * @return 文档列表
-     */
-    public List<KnowledgeDocument> listDocuments() {
-        return listDocuments(KnowledgeBaseDefaults.MAIN_CODE);
-    }
-
-    /**
      * 查询指定知识库的文档列表
      *
      * @param knowledgeBaseId 知识库ID
      * @return 文档列表
      */
     public List<KnowledgeDocument> listDocuments(String knowledgeBaseId) {
-        String normalized = knowledgeBaseService.requireActiveCode(knowledgeBaseId);
+        Long normalized = knowledgeBaseService.requireByCode(knowledgeBaseId).getId();
         return documentMapper.selectList(
             Wrappers.<KnowledgeDocument>lambdaQuery()
                 .eq(KnowledgeDocument::getKnowledgeBaseId, normalized)
         );
-    }
-
-    /**
-     * 删除默认知识库中的文档
-     *
-     * @param id 文档ID
-     */
-    public void deleteDocument(Long id) {
-        deleteDocument(id, KnowledgeBaseDefaults.MAIN_CODE);
     }
 
     /**
@@ -295,7 +258,7 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocument(Long id, String knowledgeBaseId) {
-        String normalized = knowledgeBaseService.requireActiveCode(knowledgeBaseId);
+        Long normalized = knowledgeBaseService.requireByCode(knowledgeBaseId).getId();
         KnowledgeDocument document = documentMapper.selectById(id);
         if (document == null || !normalized.equals(document.getKnowledgeBaseId())) {
             return;
@@ -329,7 +292,7 @@ public class DocumentService {
             Wrappers.<KnowledgeChunk>lambdaQuery().eq(KnowledgeChunk::getDocumentId, id)
         );
         documentMapper.deleteById(id);
-        deleteFileAfterCommit(document.getFilePath());
+        deleteFileAfterCommit(document);
     }
 
     /**
@@ -364,10 +327,17 @@ public class DocumentService {
      *
      * @param filePath 文件路径
      */
-    private void deleteFileAfterCommit(String filePath) {
+    private void deleteFileAfterCommit(KnowledgeDocument document) {
         Runnable delete = () -> {
-            if (filePath != null && !FileUtil.del(filePath)) {
-                log.warn("Unable to delete document file {}", filePath);
+            if ("MINIO".equalsIgnoreCase(document.getStorageType())
+                && document.getObjectKey() != null) {
+                documentStorage.delete(document.getObjectKey());
+                if (document.getParsedTextObjectKey() != null) {
+                    documentStorage.delete(document.getParsedTextObjectKey());
+                }
+            } else if (document.getFilePath() != null
+                && !FileUtil.del(document.getFilePath())) {
+                log.warn("Unable to delete document file {}", document.getFilePath());
             }
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

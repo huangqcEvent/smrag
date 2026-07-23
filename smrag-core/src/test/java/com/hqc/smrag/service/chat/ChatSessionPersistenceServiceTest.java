@@ -26,6 +26,7 @@ class ChatSessionPersistenceServiceTest {
         ChatSessionPersistenceService service = new ChatSessionPersistenceService(mapper, memory);
         ChatSession session = new ChatSession();
         session.setSessionId("session-1");
+        session.setUserId(7L);
         session.setQuestion("Question");
         session.setAnswer("Answer");
 
@@ -34,7 +35,7 @@ class ChatSessionPersistenceServiceTest {
         ArgumentCaptor<List<Message>> messages = ArgumentCaptor.forClass(List.class);
         InOrder order = inOrder(mapper, memory);
         order.verify(mapper).insert(session);
-        order.verify(memory).add(eq("session-1"), messages.capture());
+        order.verify(memory).add(eq("7:session-1"), messages.capture());
         assertThat(messages.getValue())
             .hasSize(2)
             .satisfiesExactly(

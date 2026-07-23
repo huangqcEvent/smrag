@@ -5,7 +5,8 @@ import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.knowledge.DocumentService;
 import com.hqc.smrag.service.knowledge.DocumentFileService;
-import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseService;
+import com.hqc.smrag.service.knowledge.PermissionDecisionService;
 import com.hqc.smrag.vo.DocumentVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,7 +33,7 @@ import com.hqc.smrag.vo.RoleVO;
  *     <li>删除文档：删除指定文档及其相关的向量数据（仅管理员）</li>
  * </ul>
  * <p>
- * 支持多知识库隔离，通过 knowledgeBaseId 参数区分不同的知识库。
+ * 支持多知识库隔离，通过稳定的 knowledgeBaseCode 参数选择知识库。
  *
  * @see DocumentService 文档服务
  * @see DocumentVO      文档视图对象
@@ -45,6 +46,8 @@ public class KnowledgeController {
     private final DocumentService documentService;
     private final DocPermissionService docPermissionService;
     private final DocumentFileService documentFileService;
+    private final KnowledgeBaseService knowledgeBaseService;
+    private final PermissionDecisionService permissionDecisionService;
 
     @GetMapping("/{id}/file")
     @PreAuthorize("isAuthenticated()")
@@ -75,8 +78,8 @@ public class KnowledgeController {
      * 上传后，文档会被发送到 Kafka 进行异步解析和向量化处理。
      *
      * @param file            上传的文件
-     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
-     * @param roles           可访问的角色列表，逗号分隔，如 "ADMIN,USER"，默认为 "ADMIN,USER"
+     * @param knowledgeBaseCode 知识库稳定 code
+     * @param roles             可访问的角色 code 列表，必须是知识库角色的子集
      * @return 上传成功的文档ID
      * @throws Exception 文件上传或处理异常
      */
@@ -84,18 +87,15 @@ public class KnowledgeController {
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> upload(
         @RequestParam("file") MultipartFile file,
-        @RequestParam(
-            value = "knowledgeBaseId",
-            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
-        ) String knowledgeBaseId,
-        @RequestParam(value = "roles", defaultValue = "ADMIN,USER") String roles
+        @RequestParam("knowledgeBaseCode") String knowledgeBaseCode,
+        @RequestParam("roles") String roles
     ) throws Exception {
         List<String> roleCodes = java.util.Arrays.stream(roles.split(","))
             .map(String::trim)
             .filter(role -> !role.isEmpty())
             .toList();
         Long documentId =
-            documentService.uploadDocument(file, knowledgeBaseId, roleCodes);
+            documentService.uploadDocument(file, knowledgeBaseCode, roleCodes);
 
         // 设置文档权限
         return Result.success(documentId);
@@ -112,27 +112,27 @@ public class KnowledgeController {
      *     <li>创建时间</li>
      * </ul>
      * <p>
-     * 普通用户只能看到有权限访问的文档。
+     * 普通用户可以看到库内全部文档，无权阅读的文档会明确标记为锁定。
      *
-     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
-     * @param userId          当前用户ID（从 JWT 中获取）
+     * @param knowledgeBaseCode 知识库稳定 code
+     * @param userId            当前用户ID（从 JWT 中获取）
      * @return 文档列表
      */
     @GetMapping("/list")
     @PreAuthorize("isAuthenticated()")
     public Result<List<DocumentVO>> list(
-        @RequestParam(
-            value = "knowledgeBaseId",
-            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
-        ) String knowledgeBaseId,
+        @RequestParam("knowledgeBaseCode") String knowledgeBaseCode,
         @AuthenticationPrincipal Long userId
     ) {
-        // 获取用户可访问的文档ID
-        List<Long> accessibleDocIds = userId != null
-            ? docPermissionService.getAccessibleDocIds(userId)
-            : List.of();
-
-        List<KnowledgeDocument> allDocs = documentService.listDocuments(knowledgeBaseId);
+        var knowledgeBase = knowledgeBaseService.requireByCode(knowledgeBaseCode);
+        if (!permissionDecisionService.isGlobalAdmin(userId)) {
+            permissionDecisionService.requireKnowledgeBaseAccess(
+                userId, List.of(knowledgeBase.getId()));
+        }
+        List<Long> accessibleDocIds =
+            docPermissionService.getAccessibleDocIds(userId, knowledgeBase.getId());
+        List<KnowledgeDocument> allDocs =
+            documentService.listDocuments(knowledgeBaseCode);
 
         Set<Long> accessibleDocIdSet = Set.copyOf(accessibleDocIds);
         List<Long> documentIds = allDocs.stream().map(KnowledgeDocument::getId).toList();
@@ -167,20 +167,17 @@ public class KnowledgeController {
      * <p>
      * 注意：删除操作不可逆，请谨慎操作。
      *
-     * @param id              文档ID
-     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
+     * @param id                文档ID
+     * @param knowledgeBaseCode 知识库稳定 code
      * @return 空结果
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> delete(
         @PathVariable Long id,
-        @RequestParam(
-            value = "knowledgeBaseId",
-            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
-        ) String knowledgeBaseId
+        @RequestParam("knowledgeBaseCode") String knowledgeBaseCode
     ) {
-        documentService.deleteDocument(id, knowledgeBaseId);
+        documentService.deleteDocument(id, knowledgeBaseCode);
         return Result.success();
     }
 }

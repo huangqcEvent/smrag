@@ -7,6 +7,8 @@ import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentSourceResolver;
+import com.hqc.smrag.service.storage.DocumentStorage;
+import com.hqc.smrag.config.MinioStorageProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +48,7 @@ class DocumentIngestionServiceTest {
     private final DocumentSourceResolver sourceResolver = mock(DocumentSourceResolver.class);
     private final DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
     private final DocPermissionService permissionService = mock(DocPermissionService.class);
+    private final DocumentStorage documentStorage = mock(DocumentStorage.class);
     @TempDir
     Path tempDir;
     private DocumentIngestionService ingestionService;
@@ -59,6 +62,8 @@ class DocumentIngestionServiceTest {
         });
         when(permissionMapper.selectReadableRoleIdsByDocumentId(42L))
             .thenReturn(List.of(1L, 2L));
+        MinioStorageProperties storageProperties = new MinioStorageProperties();
+        storageProperties.setParsedTextPrefix("rag/parsed-text");
         ingestionService = new DocumentIngestionService(
             documentMapper,
             reader,
@@ -67,7 +72,10 @@ class DocumentIngestionServiceTest {
             persistenceService,
             sourceResolver,
             permissionMapper,
-            permissionService
+            permissionService,
+            new VectorBatchWriter(vectorStore),
+            documentStorage,
+            storageProperties
         );
     }
 
@@ -86,13 +94,26 @@ class DocumentIngestionServiceTest {
         List<Document> chunks = chunks();
         when(reader.read(temporaryFile, "PDF")).thenReturn(sources);
         when(chunker.chunk(
-            sources, "default", 42L, "enterprise-rag.pdf", "PDF", 2,
+            sources, 1L, 42L, "enterprise-rag.pdf", "PDF", 2,
             DocumentStatus.COMPLETED.name(), "checksum-42", 1,
             java.util.Set.of(1L, 2L))).thenReturn(chunks);
 
         ingestionService.process(task(2));
 
         verify(reader).read(temporaryFile, "PDF");
+        verify(documentStorage).put(
+            eq("rag/parsed-text/42/v2.txt"),
+            any(java.io.InputStream.class),
+            eq(11L),
+            eq("text/plain;charset=UTF-8")
+        );
+        verify(persistenceService).saveCompleted(
+            42L,
+            2,
+            PROCESSING_TOKEN,
+            chunks,
+            "rag/parsed-text/42/v2.txt"
+        );
         org.assertj.core.api.Assertions.assertThat(temporaryFile).doesNotExist();
     }
 
@@ -107,7 +128,7 @@ class DocumentIngestionServiceTest {
         when(reader.read(Path.of(task.getFilePath()), "PDF")).thenReturn(sources);
         when(chunker.chunk(
             sources,
-            "default",
+            1L,
             42L,
             "enterprise-rag.pdf",
             "PDF",
@@ -124,7 +145,13 @@ class DocumentIngestionServiceTest {
         InOrder order = inOrder(vectorStore, permissionService, persistenceService);
         order.verify(vectorStore).add(chunks);
         order.verify(permissionService).synchronizeVectorAcl(42L);
-        order.verify(persistenceService).saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);
+        order.verify(persistenceService).saveCompleted(
+            42L,
+            2,
+            PROCESSING_TOKEN,
+            chunks,
+            null
+        );
     }
 
     @Test
@@ -139,7 +166,7 @@ class DocumentIngestionServiceTest {
         when(reader.read(Path.of(task.getFilePath()), "PDF")).thenReturn(sources);
         when(chunker.chunk(
             sources,
-            "default",
+            1L,
             42L,
             "enterprise-rag.pdf",
             "PDF",
@@ -150,7 +177,7 @@ class DocumentIngestionServiceTest {
             java.util.Set.of(1L, 2L)
         )).thenReturn(chunks);
         doThrow(failure).when(persistenceService)
-            .saveCompleted(42L, 2, PROCESSING_TOKEN, chunks);
+            .saveCompleted(42L, 2, PROCESSING_TOKEN, chunks, null);
 
         assertThatThrownBy(() -> ingestionService.process(task)).isSameAs(failure);
 
@@ -187,14 +214,15 @@ class DocumentIngestionServiceTest {
             eq(42L),
             eq(2),
             eq(PROCESSING_TOKEN),
-            anyList()
+            anyList(),
+            org.mockito.ArgumentMatchers.nullable(String.class)
         );
     }
 
     private KnowledgeDocument document(int version, DocumentStatus status) {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId(1L);
         document.setName("enterprise-rag.pdf");
         document.setFilePath("uploads/enterprise-rag.pdf");
         document.setFileType("PDF");
@@ -211,7 +239,7 @@ class DocumentIngestionServiceTest {
             42L,
             "uploads/enterprise-rag.pdf",
             "PDF",
-            "default",
+            1L,
             version,
             "checksum-42",
             PROCESSING_TOKEN

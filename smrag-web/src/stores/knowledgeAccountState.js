@@ -1,9 +1,11 @@
-import { MAIN_KNOWLEDGE_BASE } from '../constants/knowledgeBase.js'
-
 export function resetKnowledgeAccountState(state) {
   state.documents = []
   state.loading = false
-  state.knowledgeBases = [MAIN_KNOWLEDGE_BASE]
-  state.knowledgeBaseId = MAIN_KNOWLEDGE_BASE.code
-  state.requestEpoch += 1
+  state.knowledgeBases = []
+  state.adminKnowledgeBases = []
+  state.knowledgeBaseCode = ''
+  state.selectedKnowledgeBaseCodes = []
+  state.accountEpoch += 1
+  state.documentRequestEpoch += 1
+  state.adminCatalogRequested = false
 }

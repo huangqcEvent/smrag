@@ -108,7 +108,8 @@ public class DocumentIngestionPersistenceService {
         long documentId,
         int version,
         UUID processingToken,
-        List<Document> chunks
+        List<Document> chunks,
+        String parsedTextObjectKey
     ) {
         chunkMapper.delete(
             Wrappers.<KnowledgeChunk>lambdaQuery()
@@ -129,6 +130,10 @@ public class DocumentIngestionPersistenceService {
                 .eq(KnowledgeDocument::getStatus, DocumentStatus.PROCESSING.name())
                 .set(KnowledgeDocument::getStatus, DocumentStatus.COMPLETED.name())
                 .set(KnowledgeDocument::getChunkCount, entities.size())
+                .set(
+                    KnowledgeDocument::getParsedTextObjectKey,
+                    parsedTextObjectKey
+                )
                 .set(KnowledgeDocument::getFailureReason, null)
                 .set(KnowledgeDocument::getProcessingStartedAt, null)
                 .set(KnowledgeDocument::getUpdateTime, LocalDateTime.now())

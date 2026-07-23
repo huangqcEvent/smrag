@@ -30,7 +30,7 @@ class DocumentParseRecovererTest {
             42L,
             "uploads/enterprise-rag.pdf",
             "PDF",
-            "default",
+            1L,
             2,
             "checksum-42",
             UUID.fromString("00000000-0000-0000-0000-000000000042")
@@ -63,7 +63,7 @@ class DocumentParseRecovererTest {
             42L,
             "uploads/enterprise-rag.pdf",
             "PDF",
-            "default",
+            1L,
             2,
             "checksum-42",
             UUID.fromString("00000000-0000-0000-0000-000000000042")

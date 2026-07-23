@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 @TableName("knowledge_base")
 public class KnowledgeBase {
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
     private String code;
 
     private String name;
@@ -19,6 +21,10 @@ public class KnowledgeBase {
     private String description;
 
     private String status;
+
+    private Integer version;
+
+    private Long createdBy;
 
     private LocalDateTime createdAt;
 

@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class VectorService {
 
     private final VectorStore vectorStore;
+    private final VectorBatchWriter vectorBatchWriter;
 
     /**
      * 存储单个向量
@@ -41,7 +42,7 @@ public class VectorService {
      */
     public void storeVector(String content, Map<String, Object> metadata) {
         Document document = new Document(content, metadata);
-        vectorStore.add(List.of(document));
+        vectorBatchWriter.add(List.of(document));
         log.info("存储向量完成");
     }
 
@@ -57,7 +58,7 @@ public class VectorService {
         List<Document> documents = contents.stream()
             .map(content -> new Document(content, baseMetadata))
             .collect(Collectors.toList());
-        vectorStore.add(documents);
+        vectorBatchWriter.add(documents);
         log.info("批量存储向量完成，数量: {}", documents.size());
     }
 

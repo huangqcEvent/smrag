@@ -44,10 +44,14 @@ request.interceptors.response.use(
   error => {
     // 401 未登录或 Token 过期
     if (error.response?.status === 401) {
-      const authStore = useAuthStore()
-      authStore.logout()
-      router.push('/login')
-      ElMessage.error('登录已过期，请重新登录')
+      const failedAuthorization = error.config?.headers?.Authorization
+      const currentToken = globalThis.localStorage?.getItem('accessToken')
+      if (failedAuthorization === `Bearer ${currentToken}`) {
+        const authStore = useAuthStore()
+        authStore.logout()
+        router.push('/login')
+        ElMessage.error('登录已过期，请重新登录')
+      }
     } else {
       ElMessage.error(error.response?.data?.message || error.message || '请求失败')
     }

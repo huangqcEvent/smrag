@@ -2,6 +2,7 @@ package com.hqc.smrag.controller;
 
 import com.hqc.smrag.dto.ChatStreamEvent;
 import com.hqc.smrag.security.JwtAuthenticationEntryPoint;
+import com.hqc.smrag.mapper.SysUserRoleMapper;
 import com.hqc.smrag.security.config.SecurityConfig;
 import com.hqc.smrag.security.service.JwtService;
 import com.hqc.smrag.service.chat.AiChatService;
@@ -38,6 +39,9 @@ class ChatStreamSecurityTest {
     private UserDetailsService userDetailsService;
 
     @MockitoBean
+    private SysUserRoleMapper userRoleMapper;
+
+    @MockitoBean
     private AiChatService aiChatService;
 
     @jakarta.annotation.Resource
@@ -48,7 +52,8 @@ class ChatStreamSecurityTest {
         when(jwtService.validateToken(TOKEN)).thenReturn(true);
         when(jwtService.getUserId(TOKEN)).thenReturn(7L);
         when(jwtService.getUsername(TOKEN)).thenReturn("admin");
-        when(jwtService.getRoles(TOKEN)).thenReturn(List.of("ADMIN"));
+        when(userRoleMapper.selectRoleCodesByUserId(7L))
+            .thenReturn(List.of("ADMIN"));
         when(aiChatService.stream(any())).thenReturn(Flux.just(
             ChatStreamEvent.status("ANALYZING"),
             ChatStreamEvent.delta("ok"),

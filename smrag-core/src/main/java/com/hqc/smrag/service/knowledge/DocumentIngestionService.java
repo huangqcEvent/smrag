@@ -1,12 +1,14 @@
 package com.hqc.smrag.service.knowledge;
 
 import com.hqc.smrag.dto.DocumentParseTaskDTO;
+import com.hqc.smrag.config.MinioStorageProperties;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentSourceResolver;
+import com.hqc.smrag.service.storage.DocumentStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -17,6 +19,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 文档解析服务
@@ -61,6 +65,9 @@ public class DocumentIngestionService {
     private final DocumentSourceResolver sourceResolver;
     private final DocPermissionMapper permissionMapper;
     private final DocPermissionService permissionService;
+    private final VectorBatchWriter vectorBatchWriter;
+    private final DocumentStorage documentStorage;
+    private final MinioStorageProperties storageProperties;
 
     /**
      * 处理文档解析任务
@@ -98,6 +105,7 @@ public class DocumentIngestionService {
 
         List<Document> chunks = List.of();
         boolean vectorWriteAttempted = false;
+        String parsedTextObjectKey = null;
         try {
             if (!persistenceService.markProcessing(
                 document.getId(),
@@ -112,6 +120,7 @@ public class DocumentIngestionService {
                 return;
             }
             List<Document> sources = readSources(document);
+            parsedTextObjectKey = storeParsedText(document, sources);
             Set<Long> roleIds = new LinkedHashSet<>(
                 permissionMapper.selectReadableRoleIdsByDocumentId(document.getId()));
             if (roleIds.isEmpty()) {
@@ -131,13 +140,14 @@ public class DocumentIngestionService {
                 roleIds
             );
             vectorWriteAttempted = true;
-            vectorStore.add(chunks);
+            vectorBatchWriter.add(chunks);
             permissionService.synchronizeVectorAcl(document.getId());
             persistenceService.saveCompleted(
                 document.getId(),
                 document.getVersion(),
                 document.getProcessingToken(),
-                chunks
+                chunks,
+                parsedTextObjectKey
             );
             log.info(
                 "Indexed document {} version {} with {} chunks",
@@ -149,6 +159,13 @@ public class DocumentIngestionService {
             if (vectorWriteAttempted && !chunks.isEmpty()) {
                 try {
                     vectorStore.delete(chunks.stream().map(Document::getId).toList());
+                } catch (RuntimeException compensationFailure) {
+                    failure.addSuppressed(compensationFailure);
+                }
+            }
+            if (parsedTextObjectKey != null) {
+                try {
+                    documentStorage.delete(parsedTextObjectKey);
                 } catch (RuntimeException compensationFailure) {
                     failure.addSuppressed(compensationFailure);
                 }
@@ -176,6 +193,38 @@ public class DocumentIngestionService {
                 "Unable to clean up document source for " + document.getId(),
                 failure);
         }
+    }
+
+    private String storeParsedText(
+        KnowledgeDocument document,
+        List<Document> sources
+    ) {
+        if (!"MINIO".equalsIgnoreCase(document.getStorageType())) {
+            return null;
+        }
+        String prefix = storageProperties.getParsedTextPrefix();
+        if (prefix == null || prefix.isBlank()) {
+            throw new IllegalStateException(
+                "MinIO parsed text prefix is not configured"
+            );
+        }
+        String content = sources.stream()
+            .map(Document::getText)
+            .filter(Objects::nonNull)
+            .collect(java.util.stream.Collectors.joining(
+                System.lineSeparator() + System.lineSeparator()
+            ));
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        String objectKey = prefix.replaceAll("/+$", "")
+            + "/" + document.getId()
+            + "/v" + document.getVersion() + ".txt";
+        documentStorage.put(
+            objectKey,
+            new ByteArrayInputStream(bytes),
+            bytes.length,
+            "text/plain;charset=UTF-8"
+        );
+        return objectKey;
     }
 
     /**

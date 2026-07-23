@@ -4,103 +4,98 @@ import {
   uploadDocument,
   getDocumentList,
   deleteDocument,
-  setDocumentPermissions,
-  getKnowledgeBases
+  setDocumentPermissions
 } from '@/api/knowledge'
 import {
-  MAIN_KNOWLEDGE_BASE,
-  normalizeKnowledgeBaseCode,
+  changeKnowledgeBaseStatus,
+  createKnowledgeBase,
+  deleteKnowledgeBase,
+  getAccessibleKnowledgeBases,
+  getAdminKnowledgeBases,
+  moveDocument,
+  replaceKnowledgeBaseRoles,
+  updateKnowledgeBase
+} from '@/api/knowledgeBase'
+import {
   normalizeKnowledgeBases,
-  selectKnowledgeBaseCode
+  reconcileKnowledgeBaseSelection,
+  selectManagementKnowledgeBaseCode,
+  validateKnowledgeBaseSelection
 } from '@/constants/knowledgeBase'
 import { resetKnowledgeAccountState } from './knowledgeAccountState'
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
   const documents = ref([])
   const loading = ref(false)
-  const knowledgeBases = ref([MAIN_KNOWLEDGE_BASE])
-  const knowledgeBaseId = ref(MAIN_KNOWLEDGE_BASE.code)
-  let requestEpoch = 0
+  const knowledgeBases = ref([])
+  const adminKnowledgeBases = ref([])
+  const knowledgeBaseCode = ref('')
+  const selectedKnowledgeBaseCodes = ref([])
+  let accountEpoch = 0
+  let documentRequestEpoch = 0
+  let adminCatalogRequested = false
 
-  const fetchKnowledgeBases = async () => {
-    const requestId = ++requestEpoch
-    try {
-      const resources = normalizeKnowledgeBases(await getKnowledgeBases())
-      if (requestId !== requestEpoch) return
-      knowledgeBases.value = resources
-    } catch (error) {
-      if (requestId !== requestEpoch) return
-      console.error('加载知识库失败:', error)
-      knowledgeBases.value = [MAIN_KNOWLEDGE_BASE]
-    }
-    knowledgeBaseId.value = selectKnowledgeBaseCode(
-      knowledgeBaseId.value,
-      knowledgeBases.value
+  const reconcileManagementSelection = () => {
+    knowledgeBaseCode.value = selectManagementKnowledgeBaseCode(
+      knowledgeBaseCode.value,
+      knowledgeBases.value,
+      adminKnowledgeBases.value,
+      adminCatalogRequested
     )
   }
 
-  // 获取文档列表
-  const fetchDocuments = async () => {
-    const requestId = ++requestEpoch
-    const code = normalizeKnowledgeBaseCode(knowledgeBaseId.value)
-    knowledgeBaseId.value = code
+  const fetchKnowledgeBases = async () => {
+    const requestAccountEpoch = accountEpoch
+    const resources = normalizeKnowledgeBases(await getAccessibleKnowledgeBases())
+    if (requestAccountEpoch !== accountEpoch) return
+    knowledgeBases.value = resources
+    reconcileManagementSelection()
+    selectedKnowledgeBaseCodes.value = reconcileKnowledgeBaseSelection(
+      selectedKnowledgeBaseCodes.value,
+      resources
+    )
+  }
+
+  const fetchAdminKnowledgeBases = async () => {
+    adminCatalogRequested = true
+    const requestAccountEpoch = accountEpoch
+    const resources = normalizeKnowledgeBases(await getAdminKnowledgeBases())
+    if (requestAccountEpoch !== accountEpoch) return
+    adminKnowledgeBases.value = resources
+    reconcileManagementSelection()
+  }
+
+  const fetchDocuments = async (code = knowledgeBaseCode.value) => {
+    if (!code) {
+      documents.value = []
+      return
+    }
+    const requestAccountEpoch = accountEpoch
+    const requestId = ++documentRequestEpoch
+    knowledgeBaseCode.value = code
     loading.value = true
     try {
-      const nextDocuments = await getDocumentList(code)
-      if (requestId === requestEpoch && knowledgeBaseId.value === code) {
-        documents.value = nextDocuments
+      const next = await getDocumentList(code)
+      if (requestAccountEpoch === accountEpoch
+        && requestId === documentRequestEpoch
+        && knowledgeBaseCode.value === code) {
+        documents.value = Array.isArray(next) ? next : []
       }
-    } catch (error) {
-      if (requestId === requestEpoch) {
-        documents.value = []
-      }
-      throw error
     } finally {
-      if (requestId === requestEpoch) {
-        loading.value = false
-      }
+      if (requestAccountEpoch === accountEpoch
+        && requestId === documentRequestEpoch) loading.value = false
     }
   }
 
-  const resetForAccountChange = () => {
-    const state = {
-      documents: documents.value,
-      loading: loading.value,
-      knowledgeBases: knowledgeBases.value,
-      knowledgeBaseId: knowledgeBaseId.value,
-      requestEpoch
-    }
-    resetKnowledgeAccountState(state)
-    documents.value = state.documents
-    loading.value = state.loading
-    knowledgeBases.value = state.knowledgeBases
-    knowledgeBaseId.value = state.knowledgeBaseId
-    requestEpoch = state.requestEpoch
+  const upload = async (file, code, roles) => {
+    await uploadDocument(file, code, roles)
+    await fetchDocuments(code)
   }
 
-  // 上传文档
-  const upload = async (file, knowledgeBase = null, roles = ['ADMIN', 'USER']) => {
-    try {
-      const code = normalizeKnowledgeBaseCode(knowledgeBase || knowledgeBaseId.value)
-      await uploadDocument(file, code, roles)
-      await fetchDocuments()
-      return true
-    } catch (error) {
-      console.error('上传失败:', error)
-      return false
-    }
-  }
-
-  // 删除文档
-  const remove = async (id) => {
-    try {
-      await deleteDocument(id, normalizeKnowledgeBaseCode(knowledgeBaseId.value))
-      await fetchDocuments()
-      return true
-    } catch (error) {
-      console.error('删除失败:', error)
-      return false
-    }
+  const remove = async id => {
+    await deleteDocument(id, knowledgeBaseCode.value)
+    await fetchDocuments()
+    await fetchAdminKnowledgeBases()
   }
 
   const updatePermissions = async (id, roleCodes) => {
@@ -108,16 +103,86 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await fetchDocuments()
   }
 
+  const createBase = async data => {
+    await createKnowledgeBase(data)
+    await Promise.all([fetchAdminKnowledgeBases(), fetchKnowledgeBases()])
+  }
+
+  const updateBase = async (id, data) => {
+    await updateKnowledgeBase(id, data)
+    await Promise.all([fetchAdminKnowledgeBases(), fetchKnowledgeBases()])
+  }
+
+  const updateBaseRoles = async (id, data) => {
+    await replaceKnowledgeBaseRoles(id, data)
+    await Promise.all([fetchAdminKnowledgeBases(), fetchKnowledgeBases()])
+  }
+
+  const updateBaseStatus = async (id, data) => {
+    await changeKnowledgeBaseStatus(id, data)
+    await Promise.all([fetchAdminKnowledgeBases(), fetchKnowledgeBases()])
+  }
+
+  const removeBase = async id => {
+    await deleteKnowledgeBase(id)
+    await Promise.all([fetchAdminKnowledgeBases(), fetchKnowledgeBases()])
+  }
+
+  const transferDocument = async (id, targetCode) => {
+    await moveDocument(id, targetCode)
+    await fetchDocuments()
+    await fetchAdminKnowledgeBases()
+  }
+
+  const setChatSelection = values => {
+    selectedKnowledgeBaseCodes.value =
+      validateKnowledgeBaseSelection(values)
+  }
+
+  const resetForAccountChange = () => {
+    const state = {
+      documents: documents.value,
+      loading: loading.value,
+      knowledgeBases: knowledgeBases.value,
+      adminKnowledgeBases: adminKnowledgeBases.value,
+      knowledgeBaseCode: knowledgeBaseCode.value,
+      selectedKnowledgeBaseCodes: selectedKnowledgeBaseCodes.value,
+      accountEpoch,
+      documentRequestEpoch,
+      adminCatalogRequested
+    }
+    resetKnowledgeAccountState(state)
+    documents.value = state.documents
+    loading.value = state.loading
+    knowledgeBases.value = state.knowledgeBases
+    adminKnowledgeBases.value = state.adminKnowledgeBases
+    knowledgeBaseCode.value = state.knowledgeBaseCode
+    selectedKnowledgeBaseCodes.value = state.selectedKnowledgeBaseCodes
+    accountEpoch = state.accountEpoch
+    documentRequestEpoch = state.documentRequestEpoch
+    adminCatalogRequested = state.adminCatalogRequested
+  }
+
   return {
     documents,
     loading,
     knowledgeBases,
-    knowledgeBaseId,
+    adminKnowledgeBases,
+    knowledgeBaseCode,
+    selectedKnowledgeBaseCodes,
     fetchKnowledgeBases,
+    fetchAdminKnowledgeBases,
     fetchDocuments,
     upload,
     remove,
     updatePermissions,
+    createBase,
+    updateBase,
+    updateBaseRoles,
+    updateBaseStatus,
+    removeBase,
+    transferDocument,
+    setChatSelection,
     resetForAccountChange
   }
 })

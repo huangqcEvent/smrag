@@ -2,6 +2,7 @@ package com.hqc.smrag.service.knowledge;
 
 import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
@@ -42,9 +43,11 @@ class DocumentMinioUploadTest {
 
     @org.junit.jupiter.api.BeforeEach
     void configureKnowledgeBase() {
-        when(knowledgeBaseService.requireActiveCode(any()))
-            .thenAnswer(invocation ->
-                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
+        KnowledgeBase base = new KnowledgeBase();
+        base.setId(1L);
+        base.setCode("research");
+        base.setStatus("ACTIVE");
+        when(knowledgeBaseService.requireActive(any())).thenReturn(base);
     }
 
     @Test

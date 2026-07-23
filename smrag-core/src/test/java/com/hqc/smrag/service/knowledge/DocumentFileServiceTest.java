@@ -2,7 +2,6 @@ package com.hqc.smrag.service.knowledge;
 
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
-import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentStorage;
 import com.hqc.smrag.service.storage.StoredObject;
 import org.junit.jupiter.api.Test;
@@ -10,10 +9,10 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,52 +21,44 @@ import static org.mockito.Mockito.when;
 class DocumentFileServiceTest {
 
     private final KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
-    private final DocPermissionService permissions = mock(DocPermissionService.class);
+    private final PermissionDecisionService permissions =
+        mock(PermissionDecisionService.class);
     private final DocumentStorage storage = mock(DocumentStorage.class);
-    private final KnowledgeBaseService knowledgeBases = mock(KnowledgeBaseService.class);
     private final DocumentFileService service =
-        new DocumentFileService(mapper, permissions, storage, knowledgeBases);
+        new DocumentFileService(mapper, permissions, storage);
 
     @Test
-    void returnsMinioFileForAuthorizedUser() {
+    void returnsMinioFileAfterRealTimePermissionCheck() {
         KnowledgeDocument document = document();
         when(mapper.selectById(42L)).thenReturn(document);
-        when(permissions.getAccessibleDocIds(7L)).thenReturn(List.of(42L));
         when(storage.get(document.getObjectKey(), null, null)).thenReturn(
             new StoredObject(
-                new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)),
-                7, 7, "application/pdf"));
+                new ByteArrayInputStream(
+                    "content".getBytes(StandardCharsets.UTF_8)),
+                7,
+                7,
+                "application/pdf"
+            )
+        );
 
         DocumentFileService.DocumentFile file = service.read(42L, 7L);
 
-        assertThat(file.content()).isEqualTo("content".getBytes(StandardCharsets.UTF_8));
-        assertThat(file.contentType()).isEqualTo("application/pdf");
+        verify(permissions).requireDocumentRead(7L, 42L);
+        assertThat(file.content())
+            .isEqualTo("content".getBytes(StandardCharsets.UTF_8));
         assertThat(file.fileName()).isEqualTo("manual.pdf");
     }
 
     @Test
-    void deniesFileBeforeReadingStorageWhenUserHasNoPermission() {
+    void deniesBeforeReadingObjectStorage() {
         when(mapper.selectById(42L)).thenReturn(document());
-        when(permissions.getAccessibleDocIds(7L)).thenReturn(List.of());
+        doThrow(new AccessDeniedException("没有权限"))
+            .when(permissions).requireDocumentRead(7L, 42L);
 
         assertThatThrownBy(() -> service.read(42L, 7L))
             .isInstanceOf(AccessDeniedException.class);
-
-        verify(storage, never()).get("rag/document/42/manual.pdf", null, null);
-    }
-
-    @Test
-    void deniesFileFromDisabledKnowledgeBaseBeforeCheckingDocumentPermission() {
-        when(mapper.selectById(42L)).thenReturn(document());
-        when(knowledgeBases.requireActiveCode("company-main"))
-            .thenThrow(new IllegalArgumentException("知识库未启用"));
-
-        assertThatThrownBy(() -> service.read(42L, 7L))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("知识库未启用");
-
-        verify(permissions, never()).getAccessibleDocIds(7L);
-        verify(storage, never()).get("rag/document/42/manual.pdf", null, null);
+        verify(storage, never()).get(
+            "rag/document/42/manual.pdf", null, null);
     }
 
     private KnowledgeDocument document() {
@@ -77,7 +68,7 @@ class DocumentFileServiceTest {
         document.setFileType("PDF");
         document.setStorageType("MINIO");
         document.setObjectKey("rag/document/42/manual.pdf");
-        document.setKnowledgeBaseId("company-main");
+        document.setKnowledgeBaseId(1L);
         return document;
     }
 }

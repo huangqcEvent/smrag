@@ -1,6 +1,6 @@
 package com.hqc.smrag.dto;
 
-import com.hqc.smrag.enums.RouteType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -9,41 +9,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ChatContractTest {
 
+    private final ObjectMapper mapper = new ObjectMapper();
+
     @Test
-    void supportsKnowledgeScopeAndStructuredCitations() {
+    void usesExplicitMultiKnowledgeBaseRequestAndRichCitations() throws Exception {
         ChatRequestDTO request = new ChatRequestDTO();
-        request.setSessionId("s-1");
-        request.setQuestion("这只基金的风险是什么？");
-        request.setKnowledgeBaseId("default");
-        request.setDocumentId(11L);
-
+        request.setSessionId("session-1");
+        request.setQuestion("风险有哪些");
+        request.setKnowledgeBaseCodes(List.of("research", "compliance"));
         CitationDTO citation = new CitationDTO(
-            "vector-id",
-            11L,
-            "default",
-            "招募说明书.pdf",
-            4,
+            "vector-1",
+            7L,
+            12L,
+            "research",
+            "投研知识库",
+            "manual.pdf",
+            2,
             3,
-            0.91d,
-            "风险等级为中风险"
+            0.88,
+            "excerpt"
         );
-        ChatResponseDTO response = new ChatResponseDTO();
-        response.setAnswer("回答");
-        response.setRouteType(RouteType.KNOWLEDGE_QA.name());
-        response.setReferences(List.of("招募说明书.pdf"));
-        response.setCitations(List.of(citation));
-        response.setSessionId("s-1");
 
-        assertThat(request.getKnowledgeBaseId()).isEqualTo("default");
-        assertThat(request.getDocumentId()).isEqualTo(11L);
-        assertThat(response.getReferences()).containsExactly("招募说明书.pdf");
-        assertThat(response.getCitations()).containsExactly(citation);
-        assertThat(RouteType.valueOf("MANAGER_QUERY")).isEqualTo(RouteType.MANAGER_QUERY);
-    }
+        String requestJson = mapper.writeValueAsString(request);
+        String citationJson = mapper.writeValueAsString(citation);
 
-    @Test
-    void routeDecisionFallsBackToKnowledgeQa() {
-        assertThat(new RouteDecision(null, null))
-            .isEqualTo(new RouteDecision(RouteType.KNOWLEDGE_QA, ""));
+        assertThat(requestJson)
+            .contains("\"knowledgeBaseCodes\":[\"research\",\"compliance\"]")
+            .doesNotContain("knowledgeBaseId");
+        assertThat(citationJson)
+            .contains("\"knowledgeBaseId\":12")
+            .contains("\"knowledgeBaseName\":\"投研知识库\"");
     }
 }

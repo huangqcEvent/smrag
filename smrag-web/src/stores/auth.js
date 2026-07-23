@@ -13,8 +13,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 计算属性
   const isLoggedIn = computed(() => !!accessToken.value)
-  const userRole = computed(() => user.value?.roles?.[0] || 'USER')
-  const isAdmin = computed(() => userRole.value === 'ADMIN')
+  const userRole = computed(() =>
+    user.value?.roles?.includes('ADMIN')
+      ? 'ADMIN'
+      : (user.value?.roles?.[0] || 'USER')
+  )
+  const isAdmin = computed(() => user.value?.roles?.includes('ADMIN') === true)
   const username = computed(() => user.value?.username || '')
 
   /**

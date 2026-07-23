@@ -2,6 +2,7 @@ package com.hqc.smrag.security.config;
 
 import com.hqc.smrag.security.JwtAuthenticationEntryPoint;
 import com.hqc.smrag.security.filter.JwtAuthenticationFilter;
+import com.hqc.smrag.mapper.SysUserRoleMapper;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -40,10 +41,11 @@ public class SecurityConfig {
     private final com.hqc.smrag.security.service.JwtService jwtService;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final UserDetailsService userDetailsService;
+    private final SysUserRoleMapper userRoleMapper;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(jwtService);
+        return new JwtAuthenticationFilter(jwtService, userRoleMapper);
     }
 
     /**

@@ -2,59 +2,79 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  MAIN_KNOWLEDGE_BASE,
+  limitKnowledgeBaseSelection,
   normalizeKnowledgeBaseCode,
   normalizeKnowledgeBases,
-  selectKnowledgeBaseCode
+  reconcileKnowledgeBaseSelection,
+  selectManagementKnowledgeBaseCode,
+  selectKnowledgeBaseCode,
+  validateKnowledgeBaseSelection
 } from '../src/constants/knowledgeBase.js'
 import { resetKnowledgeAccountState } from '../src/stores/knowledgeAccountState.js'
 
-test('normalizes blank and legacy default codes to company-main', () => {
-  assert.equal(normalizeKnowledgeBaseCode(), 'company-main')
-  assert.equal(normalizeKnowledgeBaseCode('  '), 'company-main')
-  assert.equal(normalizeKnowledgeBaseCode('default'), 'company-main')
-  assert.equal(normalizeKnowledgeBaseCode(' FINANCE '), 'finance')
+test('keeps an empty server response empty without inventing a default base', () => {
+  assert.deepEqual(normalizeKnowledgeBases(null), [])
+  assert.equal(normalizeKnowledgeBaseCode(' Research '), 'research')
+  assert.equal(selectKnowledgeBaseCode('missing', []), '')
 })
 
-test('normalizes API resources and falls back to the company knowledge base', () => {
-  assert.deepEqual(normalizeKnowledgeBases(null), [MAIN_KNOWLEDGE_BASE])
+test('normalizes resources and removes duplicate codes', () => {
   assert.deepEqual(normalizeKnowledgeBases([
-    { code: 'company-main', name: '研发知识中心', description: '后台配置名称' },
+    { id: 1, code: 'research', name: '投研库' },
+    { id: 2, code: ' RESEARCH ', name: '重复项' },
     { code: '', name: '坏数据' }
   ]), [{
-    code: 'company-main',
-    name: '研发知识中心',
-    description: '后台配置名称'
+    id: 1,
+    code: 'research',
+    name: '投研库',
+    description: '',
+    status: 'ACTIVE',
+    roles: []
   }])
 })
 
-test('keeps a valid selection and otherwise selects the first available resource', () => {
-  const bases = [
-    MAIN_KNOWLEDGE_BASE,
-    { code: 'finance', name: '投研知识库', description: '' }
-  ]
-
-  assert.equal(selectKnowledgeBaseCode('finance', bases), 'finance')
-  assert.equal(selectKnowledgeBaseCode('missing', bases), 'company-main')
-  assert.equal(selectKnowledgeBaseCode('default', bases), 'company-main')
+test('validates the explicit one to five knowledge base chat scope', () => {
+  assert.deepEqual(limitKnowledgeBaseSelection(['a', 'b', 'a']), ['a', 'b'])
+  assert.throws(() => validateKnowledgeBaseSelection([]))
+  assert.throws(() => validateKnowledgeBaseSelection(['a', 'b', 'c', 'd', 'e', 'f']))
+  assert.deepEqual(
+    reconcileKnowledgeBaseSelection(['a', 'missing'], [{ code: 'a' }]),
+    ['a']
+  )
 })
 
-test('clears every account-scoped knowledge value and invalidates in-flight requests', () => {
+test('keeps an administrator on a disabled base while accessible bases refresh', () => {
+  const accessible = [{ code: 'active' }]
+  const admin = [{ code: 'active' }, { code: 'disabled', status: 'DISABLED' }]
+
+  assert.equal(
+    selectManagementKnowledgeBaseCode('disabled', accessible, admin, true),
+    'disabled'
+  )
+})
+
+test('clears all account-scoped knowledge values', () => {
   const state = {
-    documents: [{ id: 1, name: '上一账号文档' }],
+    documents: [{ id: 1 }],
     loading: true,
-    knowledgeBases: [{ code: 'finance', name: '财务知识库', description: '' }],
-    knowledgeBaseId: 'finance',
-    requestEpoch: 2
+    knowledgeBases: [{ code: 'a' }],
+    adminKnowledgeBases: [{ code: 'b' }],
+    knowledgeBaseCode: 'a',
+    selectedKnowledgeBaseCodes: ['a'],
+    accountEpoch: 2,
+    documentRequestEpoch: 4,
+    adminCatalogRequested: true
   }
-
   resetKnowledgeAccountState(state)
-
   assert.deepEqual(state, {
     documents: [],
     loading: false,
-    knowledgeBases: [MAIN_KNOWLEDGE_BASE],
-    knowledgeBaseId: MAIN_KNOWLEDGE_BASE.code,
-    requestEpoch: 3
+    knowledgeBases: [],
+    adminKnowledgeBases: [],
+    knowledgeBaseCode: '',
+    selectedKnowledgeBaseCodes: [],
+    accountEpoch: 3,
+    documentRequestEpoch: 5,
+    adminCatalogRequested: false
   })
 })

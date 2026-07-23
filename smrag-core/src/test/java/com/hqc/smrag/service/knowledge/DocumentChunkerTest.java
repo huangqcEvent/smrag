@@ -35,7 +35,7 @@ class DocumentChunkerTest {
 
         List<Document> chunks = chunker.chunk(
             sources,
-            "default",
+            1L,
             42L,
             "enterprise-rag.pdf",
             "PDF",
@@ -50,17 +50,20 @@ class DocumentChunkerTest {
         assertThat(chunks).allSatisfy(chunk -> {
             assertThat(UUID.fromString(chunk.getId())).isNotNull();
             assertThat(chunk.getMetadata())
-                .containsEntry("knowledgeBaseId", "default")
+                .containsEntry("knowledgeBaseId", 1L)
                 .containsEntry("documentId", 42L)
                 .containsEntry("documentName", "enterprise-rag.pdf")
                 .containsEntry("documentType", "PDF")
                 .containsEntry("documentVersion", 2)
                 .containsEntry("documentStatus", "PROCESSING")
                 .containsEntry("checksum", "checksum-42")
-                .containsEntry("aclVersion", 3)
-                .containsEntry("aclDenied", false)
-                .containsEntry("aclRoleId_1", true)
-                .doesNotContainKey("aclRole_1")
+                .containsEntry("documentAclVersion", 3)
+                .doesNotContainKeys(
+                    "aclVersion",
+                    "aclDenied",
+                    "aclRoleId_1",
+                    "aclRole_1"
+                )
                 .containsKey("chunkIndex");
         });
         assertThat(chunks)
@@ -68,7 +71,7 @@ class DocumentChunkerTest {
 
         List<Document> repeated = chunker.chunk(
             sources,
-            "default",
+            1L,
             42L,
             "enterprise-rag.pdf",
             "PDF",
@@ -83,7 +86,7 @@ class DocumentChunkerTest {
     }
 
     @Test
-    void writesSameAclMetadataToEveryChunk() {
+    void writesOnlyAclVersionRatherThanMutableRoleSnapshots() {
         RagProperties properties = new RagProperties();
         properties.setChunkSize(30);
         properties.setMinChunkSizeChars(1);
@@ -93,15 +96,19 @@ class DocumentChunkerTest {
 
         List<Document> chunks = chunker.chunk(
             List.of(new Document("permission aware knowledge content")),
-            "default", 42L, "manual.txt", "TXT", 1, "COMPLETED",
+            1L, 42L, "manual.txt", "TXT", 1, "COMPLETED",
             "checksum", 3, Set.of(1L, 5L));
 
         assertThat(chunks).isNotEmpty().allSatisfy(chunk ->
             assertThat(chunk.getMetadata())
-                .containsEntry("aclVersion", 3)
-                .containsEntry("aclDenied", false)
-                .containsEntry("aclRoleId_1", true)
-                .containsEntry("aclRoleId_5", true)
-                .doesNotContainKeys("aclRole_1", "aclRole_5"));
+                .containsEntry("documentAclVersion", 3)
+                .doesNotContainKeys(
+                    "aclVersion",
+                    "aclDenied",
+                    "aclRoleId_1",
+                    "aclRoleId_5",
+                    "aclRole_1",
+                    "aclRole_5"
+                ));
     }
 }

@@ -132,7 +132,8 @@
                       class="citation-document-link"
                       @click="openCitation(citation)"
                     >
-                      {{ citation.documentName || `文档 ${citation.documentId}` }}
+                      {{ citation.knowledgeBaseName || citation.knowledgeBaseCode || '知识库' }}
+                      / {{ citation.documentName || `文档 ${citation.documentId}` }}
                     </button>
                     <span v-if="citation.pageNumber != null">第 {{ citation.pageNumber }} 页</span>
                     <span v-if="citation.score != null">
@@ -157,12 +158,21 @@
     <footer class="composer-dock">
       <div class="scope-row">
         <el-icon><Collection /></el-icon>
-        <label for="knowledge-base">知识库</label>
+        <span>检索范围</span>
+        <strong v-if="knowledgeBases.length === 1" class="single-scope">
+          {{ knowledgeBases[0].name }}
+        </strong>
         <el-select
+          v-else-if="knowledgeBases.length > 1"
           id="knowledge-base"
-          v-model="knowledgeBaseId"
+          v-model="selectedKnowledgeBaseCodes"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          :multiple-limit="5"
           size="small"
-          aria-label="知识库"
+          placeholder="选择 1 至 5 个知识库"
+          aria-label="检索知识库"
         >
           <el-option
             v-for="knowledgeBase in knowledgeBases"
@@ -171,6 +181,7 @@
             :value="knowledgeBase.code"
           />
         </el-select>
+        <span v-else class="scope-empty">当前账号没有可用知识库</span>
       </div>
       <div class="composer">
         <el-input
@@ -180,7 +191,7 @@
           resize="none"
           maxlength="4000"
           placeholder="输入问题"
-          :disabled="loading"
+          :disabled="loading || selectedKnowledgeBaseCodes.length === 0"
           aria-label="问题"
           @keydown.enter.exact.prevent="handleSend"
         />
@@ -189,7 +200,7 @@
             :class="['send-button', { 'stop-button': loading }]"
             type="primary"
             circle
-            :disabled="!loading && !question.trim()"
+            :disabled="!loading && (!question.trim() || selectedKnowledgeBaseCodes.length === 0)"
             :aria-label="loading ? '停止生成' : '发送问题'"
             @click="handleComposerAction"
           >
@@ -244,7 +255,7 @@ const question = ref('')
 const viewerDocument = ref(null)
 const messagesContainer = ref(null)
 const { chatHistory, loading, sessionList, currentSessionId } = storeToRefs(chatStore)
-const { knowledgeBases, knowledgeBaseId } = storeToRefs(knowledgeStore)
+const { knowledgeBases, selectedKnowledgeBaseCodes } = storeToRefs(knowledgeStore)
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 let scrollFrame = 0
 
@@ -284,8 +295,21 @@ const scrollToBottom = (smooth = true) => {
   showScrollButton.value = false
 }
 
-onMounted(() => {
-  knowledgeStore.fetchKnowledgeBases()
+onMounted(async () => {
+  const previousSelection = [...selectedKnowledgeBaseCodes.value]
+  await knowledgeStore.fetchKnowledgeBases()
+  if (
+    previousSelection.length > selectedKnowledgeBaseCodes.value.length
+  ) {
+    ElMessage.warning('部分知识库权限已失效，请重新选择检索范围')
+  }
+  if (
+    knowledgeBases.value.length === 1
+    && previousSelection.length === 0
+    && selectedKnowledgeBaseCodes.value.length === 0
+  ) {
+    selectedKnowledgeBaseCodes.value = [knowledgeBases.value[0].code]
+  }
   chatStore.initSession()
   chatStore.loadSessionList()
   messagesContainer.value?.addEventListener('scroll', handleScroll, { passive: true })
@@ -317,7 +341,7 @@ const handleSend = async () => {
   question.value = ''
   try {
     await chatStore.askQuestion(value, {
-      knowledgeBaseId: knowledgeBaseId.value
+      knowledgeBaseCodes: selectedKnowledgeBaseCodes.value
     })
   } catch {
     question.value = value
@@ -946,7 +970,16 @@ const liveStatus = computed(() => {
 }
 
 .scope-row .el-select {
-  width: 160px;
+  width: min(360px, 70vw);
+}
+
+.single-scope {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.scope-empty {
+  color: var(--el-color-warning);
 }
 
 .composer {

@@ -7,10 +7,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DocumentParseTaskDefaultsTest {
 
     @Test
-    void simplifiedTaskUsesCompanyMainKnowledgeBase() {
+    void simplifiedTaskDoesNotInventAKnowledgeBase() {
         DocumentParseTaskDTO task =
             new DocumentParseTaskDTO(42L, "document.pdf", "PDF");
 
-        assertThat(task.getKnowledgeBaseId()).isEqualTo("company-main");
+        assertThat(task.getKnowledgeBaseId()).isNull();
     }
 }

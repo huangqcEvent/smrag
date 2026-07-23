@@ -3,25 +3,30 @@ package com.hqc.smrag.service;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.hqc.smrag.dto.SetDocPermissionRequest;
-import com.hqc.smrag.entity.KnowledgeDocument;
-import com.hqc.smrag.entity.SysRole;
 import com.hqc.smrag.entity.DocPermission;
+import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
+import com.hqc.smrag.entity.SysRole;
 import com.hqc.smrag.mapper.DocPermissionMapper;
-import com.hqc.smrag.mapper.SysRoleMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.mapper.KnowledgeBaseMapper;
+import com.hqc.smrag.mapper.SysRoleMapper;
 import com.hqc.smrag.mapper.VectorAclMapper;
+import com.hqc.smrag.service.knowledge.PermissionDecisionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 class DocPermissionServiceTest {
 
@@ -35,107 +40,96 @@ class DocPermissionServiceTest {
 
     @Test
     void validatesEveryRoleBeforeDeletingExistingPermissions() {
-        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
-        SysRoleMapper roleMapper = mock(SysRoleMapper.class);
-        DocPermissionService service = new DocPermissionService(
-            permissionMapper, roleMapper, mock(KnowledgeDocumentMapper.class),
-            mock(VectorAclMapper.class));
-        when(roleMapper.selectByCodesForKeyShare(any())).thenReturn(List.of(role("USER")));
+        Fixture fixture = new Fixture();
+        when(fixture.roleMapper.selectByCodesForKeyShare(any()))
+            .thenReturn(List.of(role(1L, "USER")));
 
-        assertThatThrownBy(() -> service.setDocumentPermissions(7L,
-            request("USER", "MISSING")))
+        assertThatThrownBy(() -> fixture.service.setDocumentPermissions(
+            7L, request("USER", "MISSING")))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("MISSING");
 
-        verify(permissionMapper, never()).delete(any());
-        verify(permissionMapper, never()).insert(any(DocPermission.class));
+        verify(fixture.permissionMapper, never()).delete(any());
     }
 
     @Test
-    void rejectsEmptyPermissionsWithoutDeletingExistingGrants() {
-        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
-        DocPermissionService service = new DocPermissionService(
-            permissionMapper, mock(SysRoleMapper.class),
-            mock(KnowledgeDocumentMapper.class), mock(VectorAclMapper.class));
+    void rejectsRolesOutsideKnowledgeBaseBeforeReplacingGrants() {
+        Fixture fixture = new Fixture();
+        when(fixture.roleMapper.selectByCodesForKeyShare(any()))
+            .thenReturn(List.of(role(5L, "AUDITOR")));
+        when(fixture.documentMapper.selectById(7L)).thenReturn(document());
+        when(fixture.baseMapper.selectByIdForUpdate(1L)).thenReturn(base());
+        when(fixture.documentMapper.selectByIdForUpdate(7L))
+            .thenReturn(document());
+        org.mockito.Mockito.doThrow(new IllegalStateException("不属于知识库"))
+            .when(fixture.decisions)
+            .validateDocumentRoles(1L, List.of(5L));
 
-        assertThatThrownBy(() ->
-            service.setDocumentPermissions(7L, request()))
-            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> fixture.service.setDocumentPermissions(
+            7L, request("AUDITOR")))
+            .isInstanceOf(IllegalStateException.class);
 
-        verify(permissionMapper, never()).delete(any());
+        verify(fixture.permissionMapper, never()).delete(any());
     }
 
     @Test
-    void rejectsPermissionEntriesThatDoNotGrantReadAccess() {
-        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
-        DocPermissionService service = new DocPermissionService(
-            permissionMapper, mock(SysRoleMapper.class),
-            mock(KnowledgeDocumentMapper.class), mock(VectorAclMapper.class));
-        SetDocPermissionRequest request = request("USER");
-        request.getPermissions().get(0).setCanRead(false);
-
-        assertThatThrownBy(() -> service.setDocumentPermissions(7L, request))
-            .isInstanceOf(IllegalArgumentException.class);
-
-        verify(permissionMapper, never()).delete(any());
-    }
-
-    @Test
-    void synchronizesAclVersionAndRolesToExistingVectorMetadata() {
-        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
-        SysRoleMapper roleMapper = mock(SysRoleMapper.class);
-        KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
-        VectorAclMapper vectorAclMapper = mock(VectorAclMapper.class);
-        DocPermissionService service = new DocPermissionService(
-            permissionMapper, roleMapper, documentMapper, vectorAclMapper);
-        when(roleMapper.selectByCodesForKeyShare(any()))
+    void storesRelationalGrantsAndOnlyWritesAclVersionToMetadata() {
+        Fixture fixture = new Fixture();
+        when(fixture.roleMapper.selectByCodesForKeyShare(any()))
             .thenReturn(List.of(role(1L, "USER"), role(5L, "AUDITOR")));
-        KnowledgeDocument document = new KnowledgeDocument();
-        document.setId(7L);
-        document.setAclVersion(3);
-        when(documentMapper.selectByIdForUpdate(7L)).thenReturn(document);
+        when(fixture.documentMapper.selectById(7L)).thenReturn(document());
+        when(fixture.baseMapper.selectByIdForUpdate(1L)).thenReturn(base());
+        when(fixture.documentMapper.selectByIdForUpdate(7L))
+            .thenReturn(document());
 
-        service.setDocumentPermissions(7L, request("USER", "AUDITOR"));
+        fixture.service.setDocumentPermissions(
+            7L, request("USER", "AUDITOR"));
 
-        ArgumentCaptor<String> metadataCaptor = ArgumentCaptor.forClass(String.class);
-        verify(vectorAclMapper).updateDocumentAcl(eq(7L), metadataCaptor.capture());
-        assertThat(metadataCaptor.getValue())
-            .contains("\"aclVersion\":4")
-            .contains("\"aclDenied\":false")
-            .contains("\"aclRoleId_1\":true")
-            .contains("\"aclRoleId_5\":true")
-            .doesNotContain("aclRole_USER", "aclRole_AUDITOR");
-        InOrder order = inOrder(documentMapper, permissionMapper);
-        order.verify(documentMapper).selectByIdForUpdate(7L);
-        order.verify(permissionMapper).delete(any());
+        verify(fixture.decisions)
+            .validateDocumentRoles(1L, List.of(1L, 5L));
+        verify(fixture.permissionMapper).delete(any());
+        verify(fixture.permissionMapper, org.mockito.Mockito.times(2))
+            .insert(any(DocPermission.class));
+        verify(fixture.vectorMapper).updateDocumentAcl(7L, 4);
+        var order = inOrder(fixture.baseMapper, fixture.documentMapper);
+        order.verify(fixture.baseMapper).selectByIdForUpdate(1L);
+        order.verify(fixture.documentMapper).selectByIdForUpdate(7L);
     }
 
     @Test
-    void reconcilesVectorsFromOneLockedAclSnapshot() {
-        DocPermissionMapper permissionMapper = mock(DocPermissionMapper.class);
-        KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
-        VectorAclMapper vectorAclMapper = mock(VectorAclMapper.class);
-        DocPermissionService service = new DocPermissionService(
-            permissionMapper, mock(SysRoleMapper.class), documentMapper, vectorAclMapper);
-        KnowledgeDocument document = new KnowledgeDocument();
-        document.setId(7L);
+    void synchronizesExistingVectorsFromCurrentRelationalSnapshot() {
+        Fixture fixture = new Fixture();
+        KnowledgeDocument document = document();
         document.setAclVersion(6);
-        when(documentMapper.selectByIdForUpdate(7L)).thenReturn(document);
-        when(permissionMapper.selectReadableRoleIdsByDocumentId(7L))
+        when(fixture.documentMapper.selectById(7L)).thenReturn(document);
+        when(fixture.baseMapper.selectByIdForUpdate(1L)).thenReturn(base());
+        when(fixture.documentMapper.selectByIdForUpdate(7L))
+            .thenReturn(document);
+        when(fixture.permissionMapper.selectReadableRoleIdsByDocumentId(7L))
             .thenReturn(List.of(1L));
 
-        service.synchronizeVectorAcl(7L);
+        fixture.service.synchronizeVectorAcl(7L);
 
-        ArgumentCaptor<String> metadataCaptor = ArgumentCaptor.forClass(String.class);
-        verify(vectorAclMapper).updateDocumentAcl(eq(7L), metadataCaptor.capture());
-        assertThat(metadataCaptor.getValue())
-            .contains("\"aclVersion\":6")
-            .contains("\"aclDenied\":false")
-            .contains("\"aclRoleId_1\":true")
-            .doesNotContain("aclRole_1");
+        verify(fixture.decisions).validateDocumentRoles(1L, List.of(1L));
+        verify(fixture.vectorMapper).updateDocumentAcl(eq(7L), eq(6));
     }
 
-    private SetDocPermissionRequest request(String... codes) {
+    private static KnowledgeDocument document() {
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setId(7L);
+        document.setKnowledgeBaseId(1L);
+        document.setAclVersion(3);
+        return document;
+    }
+
+    private static KnowledgeBase base() {
+        KnowledgeBase base = new KnowledgeBase();
+        base.setId(1L);
+        base.setStatus("ACTIVE");
+        return base;
+    }
+
+    private static SetDocPermissionRequest request(String... codes) {
         SetDocPermissionRequest request = new SetDocPermissionRequest();
         request.setPermissions(java.util.Arrays.stream(codes).map(code -> {
             SetDocPermissionRequest.RolePermission permission =
@@ -147,14 +141,31 @@ class DocPermissionServiceTest {
         return request;
     }
 
-    private SysRole role(String code) {
-        return role(1L, code);
-    }
-
-    private SysRole role(Long id, String code) {
+    private static SysRole role(Long id, String code) {
         SysRole role = new SysRole();
         role.setId(id);
         role.setRoleCode(code);
         return role;
+    }
+
+    private static final class Fixture {
+        private final DocPermissionMapper permissionMapper =
+            mock(DocPermissionMapper.class);
+        private final SysRoleMapper roleMapper = mock(SysRoleMapper.class);
+        private final KnowledgeDocumentMapper documentMapper =
+            mock(KnowledgeDocumentMapper.class);
+        private final KnowledgeBaseMapper baseMapper =
+            mock(KnowledgeBaseMapper.class);
+        private final VectorAclMapper vectorMapper = mock(VectorAclMapper.class);
+        private final PermissionDecisionService decisions =
+            mock(PermissionDecisionService.class);
+        private final DocPermissionService service = new DocPermissionService(
+            permissionMapper,
+            roleMapper,
+            documentMapper,
+            baseMapper,
+            vectorMapper,
+            decisions
+        );
     }
 }

@@ -5,8 +5,10 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.DocumentIngestionOutbox;
 import com.hqc.smrag.mapper.DocumentIngestionOutboxMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.mapper.KnowledgeBaseMapper;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.mockito.ArgumentCaptor;
@@ -38,14 +40,21 @@ class DocumentUploadCompletionTest {
         KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
         DocumentIngestionOutboxMapper outboxMapper = mock(DocumentIngestionOutboxMapper.class);
         DocPermissionService permissionService = mock(DocPermissionService.class);
+        KnowledgeBaseMapper knowledgeBaseMapper = mock(KnowledgeBaseMapper.class);
         DocumentUploadPersistenceService service =
-            new DocumentUploadPersistenceService(documentMapper, outboxMapper, permissionService);
+            new DocumentUploadPersistenceService(
+                documentMapper, outboxMapper, permissionService, knowledgeBaseMapper);
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
         document.setFileType("PDF");
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId(1L);
         document.setVersion(1);
         when(documentMapper.selectById(42L)).thenReturn(document);
+        when(documentMapper.selectByIdForUpdate(42L)).thenReturn(document);
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
+        knowledgeBase.setId(1L);
+        knowledgeBase.setStatus(KnowledgeBaseService.ACTIVE);
+        when(knowledgeBaseMapper.selectByIdForUpdate(1L)).thenReturn(knowledgeBase);
 
         service.completeUpload(
             42L, "rag/document/42/file.pdf", "checksum", List.of("ADMIN"));
@@ -60,5 +69,35 @@ class DocumentUploadCompletionTest {
         assertThat(DocumentUploadPersistenceService.class
             .getMethod("completeUpload", Long.class, String.class, String.class, List.class)
             .getAnnotation(Transactional.class)).isNotNull();
+    }
+
+    @Test
+    void cancelsCompletionWhenTheKnowledgeBaseWasDisabledDuringUpload() {
+        KnowledgeDocumentMapper documentMapper = mock(KnowledgeDocumentMapper.class);
+        DocumentIngestionOutboxMapper outboxMapper =
+            mock(DocumentIngestionOutboxMapper.class);
+        DocPermissionService permissionService = mock(DocPermissionService.class);
+        KnowledgeBaseMapper knowledgeBaseMapper = mock(KnowledgeBaseMapper.class);
+        DocumentUploadPersistenceService service =
+            new DocumentUploadPersistenceService(
+                documentMapper, outboxMapper, permissionService, knowledgeBaseMapper);
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setId(42L);
+        document.setKnowledgeBaseId(1L);
+        when(documentMapper.selectById(42L)).thenReturn(document);
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
+        knowledgeBase.setId(1L);
+        knowledgeBase.setStatus(KnowledgeBaseService.DISABLED);
+        when(knowledgeBaseMapper.selectByIdForUpdate(1L)).thenReturn(knowledgeBase);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+            service.completeUpload(
+                42L, "rag/document/42/file.pdf", "checksum", List.of("ADMIN")
+            ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("停用");
+
+        org.mockito.Mockito.verify(outboxMapper, org.mockito.Mockito.never())
+            .insert(any(DocumentIngestionOutbox.class));
     }
 }

@@ -1,16 +1,18 @@
 package com.hqc.smrag.service;
 
-import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.hqc.smrag.dto.SetDocPermissionRequest;
 import com.hqc.smrag.entity.DocPermission;
 import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.entity.KnowledgeBase;
 import com.hqc.smrag.entity.SysRole;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
+import com.hqc.smrag.mapper.KnowledgeBaseMapper;
 import com.hqc.smrag.mapper.SysRoleMapper;
 import com.hqc.smrag.mapper.VectorAclMapper;
+import com.hqc.smrag.service.knowledge.PermissionDecisionService;
 import com.hqc.smrag.vo.RoleVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,7 +29,9 @@ public class DocPermissionService {
     private final DocPermissionMapper docPermissionMapper;
     private final SysRoleMapper sysRoleMapper;
     private final KnowledgeDocumentMapper documentMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final VectorAclMapper vectorAclMapper;
+    private final PermissionDecisionService permissionDecisionService;
 
     @Transactional
     public void setDocumentPermissions(Long documentId, SetDocPermissionRequest request) {
@@ -45,7 +49,14 @@ public class DocPermissionService {
         codes.stream().filter(code -> !rolesByCode.containsKey(code)).findFirst()
             .ifPresent(code -> { throw new IllegalArgumentException("角色不存在: " + code); });
 
-        KnowledgeDocument document = lockDocument(documentId);
+        KnowledgeDocument document = lockDocumentWithinKnowledgeBase(documentId);
+        LinkedHashSet<Long> roleIds = codes.stream()
+            .map(code -> rolesByCode.get(code).getId())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        permissionDecisionService.validateDocumentRoles(
+            document.getKnowledgeBaseId(),
+            List.copyOf(roleIds)
+        );
         docPermissionMapper.delete(new LambdaQueryWrapper<DocPermission>()
             .eq(DocPermission::getDocumentId, documentId));
         for (String code : codes) insertPermission(documentId, rolesByCode.get(code));
@@ -56,10 +67,7 @@ public class DocPermissionService {
                 .eq(KnowledgeDocument::getId, documentId)
                 .set(KnowledgeDocument::getAclVersion, aclVersion)
                 .set(KnowledgeDocument::getUpdateTime, LocalDateTime.now()));
-        LinkedHashSet<Long> roleIds = codes.stream()
-            .map(code -> rolesByCode.get(code).getId())
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-        updateVectorAcl(documentId, aclVersion, roleIds);
+        updateVectorAcl(documentId, aclVersion);
     }
 
     @Transactional
@@ -74,8 +82,35 @@ public class DocPermissionService {
         setDocumentPermissions(documentId, request);
     }
 
-    public List<Long> getAccessibleDocIds(Long userId) {
-        return docPermissionMapper.selectAccessibleDocIdsByUserId(userId);
+    public List<Long> getAccessibleDocIds(Long userId, Long knowledgeBaseId) {
+        if (userId == null || knowledgeBaseId == null) {
+            return List.of();
+        }
+        return permissionDecisionService.isGlobalAdmin(userId)
+            ? docPermissionMapper.selectAllDocumentIdsByKnowledgeBaseId(knowledgeBaseId)
+            : docPermissionMapper
+                .selectAuthorizedDocIdsByUserIdAndKnowledgeBaseId(
+                    userId,
+                    knowledgeBaseId
+                );
+    }
+
+    public List<Long> getAccessibleDocIds(Long userId, List<Long> documentIds) {
+        if (userId == null || documentIds == null || documentIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> normalizedIds = documentIds.stream()
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (normalizedIds.isEmpty()) {
+            return List.of();
+        }
+        return docPermissionMapper.selectCurrentlyReadableDocumentIds(
+            userId,
+            permissionDecisionService.isGlobalAdmin(userId),
+            normalizedIds
+        );
     }
 
     public List<Long> getUserRoleIds(Long userId) {
@@ -84,19 +119,21 @@ public class DocPermissionService {
 
     @Transactional
     public void synchronizeVectorAcl(Long documentId) {
-        KnowledgeDocument document = lockDocument(documentId);
-        LinkedHashSet<Long> roleIds = new LinkedHashSet<>(
-            docPermissionMapper.selectReadableRoleIdsByDocumentId(documentId)
-        );
+        KnowledgeDocument document = lockDocumentWithinKnowledgeBase(documentId);
+        List<Long> roleIds =
+            docPermissionMapper.selectReadableRoleIdsByDocumentId(documentId);
         if (roleIds.isEmpty()) {
             throw new IllegalStateException(
                 "Document " + documentId + " has no readable roles"
             );
         }
+        permissionDecisionService.validateDocumentRoles(
+            document.getKnowledgeBaseId(),
+            roleIds
+        );
         updateVectorAcl(
             documentId,
-            Objects.requireNonNullElse(document.getAclVersion(), 1),
-            roleIds
+            Objects.requireNonNullElse(document.getAclVersion(), 1)
         );
     }
 
@@ -120,23 +157,32 @@ public class DocPermissionService {
         docPermissionMapper.insert(permission);
     }
 
-    private KnowledgeDocument lockDocument(Long documentId) {
+    private KnowledgeDocument lockDocumentWithinKnowledgeBase(Long documentId) {
+        KnowledgeDocument observed = documentMapper.selectById(documentId);
+        if (observed == null) {
+            throw new IllegalArgumentException("文档不存在");
+        }
+        KnowledgeBase knowledgeBase =
+            knowledgeBaseMapper.selectByIdForUpdate(observed.getKnowledgeBaseId());
+        if (knowledgeBase == null) {
+            throw new IllegalStateException("文档所属知识库已不存在");
+        }
         KnowledgeDocument document = documentMapper.selectByIdForUpdate(documentId);
         if (document == null) {
             throw new IllegalArgumentException("文档不存在");
+        }
+        if (!Objects.equals(
+            observed.getKnowledgeBaseId(), document.getKnowledgeBaseId()
+        )) {
+            throw new IllegalStateException("文档已被迁移，请刷新后重试");
         }
         return document;
     }
 
     private void updateVectorAcl(
         Long documentId,
-        int aclVersion,
-        Set<Long> roleIds
+        int aclVersion
     ) {
-        Map<String, Object> acl = new LinkedHashMap<>();
-        acl.put("aclVersion", aclVersion);
-        acl.put("aclDenied", false);
-        roleIds.forEach(roleId -> acl.put("aclRoleId_" + roleId, true));
-        vectorAclMapper.updateDocumentAcl(documentId, JSONUtil.toJsonStr(acl));
+        vectorAclMapper.updateDocumentAcl(documentId, aclVersion);
     }
 }

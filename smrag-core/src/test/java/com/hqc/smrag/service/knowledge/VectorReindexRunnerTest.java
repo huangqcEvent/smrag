@@ -41,11 +41,12 @@ class VectorReindexRunnerTest {
             permissionMapper,
             permissionService,
             vectorStore,
-            new VectorDocumentIdGenerator()
+            new VectorDocumentIdGenerator(),
+            new VectorBatchWriter(vectorStore)
         );
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("company-main");
+        document.setKnowledgeBaseId(1L);
         document.setName("legacy.pdf");
         document.setFileType("PDF");
         document.setVersion(1);
@@ -71,11 +72,10 @@ class VectorReindexRunnerTest {
             );
         assertThat(documentsCaptor.getAllValues().get(0))
             .allSatisfy(vector -> assertThat(vector.getMetadata())
-                .containsEntry("aclVersion", 3)
-                .containsEntry("aclDenied", false)
-                .containsEntry("aclRoleId_1", true)
-                .containsEntry("aclRoleId_5", true)
-                .doesNotContainKeys("aclRole_1", "aclRole_5"));
+                .containsEntry("documentAclVersion", 3)
+                .containsEntry("knowledgeBaseId", 1L)
+                .doesNotContainKeys(
+                    "aclVersion", "aclDenied", "aclRoleId_1", "aclRoleId_5"));
         ArgumentCaptor<Collection> chunksCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(chunkMapper, times(2)).updateById(chunksCaptor.capture(), eq(500));
         assertThat(first.getVectorId()).isNotNull();
@@ -96,7 +96,8 @@ class VectorReindexRunnerTest {
             permissionMapper,
             permissionService,
             vectorStore,
-            new VectorDocumentIdGenerator()
+            new VectorDocumentIdGenerator(),
+            new VectorBatchWriter(vectorStore)
         );
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
@@ -116,10 +117,8 @@ class VectorReindexRunnerTest {
 
         runner.run(new DefaultApplicationArguments());
 
-        String expectedId = new VectorDocumentIdGenerator()
-            .generate("company-main", 42L, 2, 0)
-            .toString();
-        verify(vectorStore).delete(List.of(expectedId));
+        verify(vectorStore, org.mockito.Mockito.never()).add(
+            org.mockito.ArgumentMatchers.anyList());
     }
 
     private KnowledgeChunk chunk(long id, int index, String content) {

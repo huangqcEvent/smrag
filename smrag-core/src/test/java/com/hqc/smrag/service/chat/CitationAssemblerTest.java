@@ -22,7 +22,9 @@ class CitationAssemblerTest {
             .score(0.91)
             .metadata(Map.of(
                 "documentId", 42L,
-                "knowledgeBaseId", "finance",
+                "knowledgeBaseId", 12L,
+                "knowledgeBaseCode", "finance",
+                "knowledgeBaseName", "财务制度库",
                 "documentName", "policy.pdf",
                 "chunkIndex", 3,
                 "pageNumber", 7
@@ -48,7 +50,9 @@ class CitationAssemblerTest {
         CitationDTO citation = citations.get(0);
         assertThat(citation.vectorId()).isEqualTo("vector-1");
         assertThat(citation.documentId()).isEqualTo(42L);
-        assertThat(citation.knowledgeBaseId()).isEqualTo("finance");
+        assertThat(citation.knowledgeBaseId()).isEqualTo(12L);
+        assertThat(citation.knowledgeBaseCode()).isEqualTo("finance");
+        assertThat(citation.knowledgeBaseName()).isEqualTo("财务制度库");
         assertThat(citation.documentName()).isEqualTo("policy.pdf");
         assertThat(citation.chunkIndex()).isEqualTo(3);
         assertThat(citation.pageNumber()).isEqualTo(7);

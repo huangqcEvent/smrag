@@ -1,6 +1,7 @@
 package com.hqc.smrag.service.chat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hqc.smrag.config.ChatStreamProperties;
 import com.hqc.smrag.dto.ChatRequestDTO;
@@ -11,11 +12,11 @@ import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.exception.AiServiceException;
 import com.hqc.smrag.service.DocPermissionService;
-import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -90,22 +91,19 @@ public class AiChatService {
     public ChatResponseDTO ask(ChatRequestDTO request) {
         StreamRequest normalized = normalizeStreamRequest(request);
         String sessionId = normalized.sessionId();
+        String conversationKey = normalized.conversationKey();
         String question = normalized.question();
         Long userId = normalized.userId();
 
-        List<Long> roleIds = userId != null && docPermissionService != null
-            ? docPermissionService.getUserRoleIds(userId)
-            : null;
-
-        String rewrittenQuestion = queryService.rewrite(question, sessionId);
+        String rewrittenQuestion = queryService.rewrite(question, conversationKey);
         RouteType routeType = routeService.route(rewrittenQuestion);
         BranchAnswer branchAnswer = answer(
             routeType,
             rewrittenQuestion,
-            sessionId,
-            normalized.knowledgeBaseId(),
+            conversationKey,
+            normalized.knowledgeBaseCodes(),
             normalized.documentId(),
-            roleIds
+            userId
         );
         branchAnswer = revalidateCitations(branchAnswer, userId);
         if (branchAnswer.answer() == null || branchAnswer.answer().isBlank()) {
@@ -146,17 +144,13 @@ public class AiChatService {
                 StreamRequest normalized = normalizeStreamRequest(request);
                 Long userId = normalized.userId();
 
-                List<Long> roleIds = userId != null && docPermissionService != null
-                    ? docPermissionService.getUserRoleIds(userId)
-                    : null;
-
                 Flux<ChatStreamEvent> processing = Mono.fromCallable(() -> {
                         String rewrittenQuestion = queryService.rewrite(
                             normalized.question(),
-                            normalized.sessionId()
+                            normalized.conversationKey()
                         );
                         RouteType routeType = routeService.route(rewrittenQuestion);
-                        return new StreamContext(normalized, rewrittenQuestion, routeType, roleIds);
+                        return new StreamContext(normalized, rewrittenQuestion, routeType);
                     })
                     .subscribeOn(Schedulers.boundedElastic())
                     .flatMapMany(this::streamPrepared);
@@ -196,7 +190,32 @@ public class AiChatService {
      * @return 该会话下的所有对话记录，按时间顺序排列
      */
     public List<ChatSession> history(String sessionId, Long userId) {
-        return persistenceService.history(sessionId, userId);
+        List<ChatSession> sessions = persistenceService.history(sessionId, userId);
+        if (sessions.isEmpty() || docPermissionService == null) {
+            return sessions;
+        }
+        List<List<CitationDTO>> storedCitations = sessions.stream()
+            .map(this::parseStoredCitations)
+            .toList();
+        List<Long> candidateIds = storedCitations.stream()
+            .flatMap(List::stream)
+            .map(CitationDTO::documentId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+        Set<Long> accessibleDocIds = candidateIds.isEmpty()
+            ? Set.of()
+            : new HashSet<>(
+                docPermissionService.getAccessibleDocIds(userId, candidateIds)
+            );
+        for (int index = 0; index < sessions.size(); index++) {
+            List<CitationDTO> citations = storedCitations.get(index).stream()
+                .filter(citation -> citation.documentId() != null
+                    && accessibleDocIds.contains(citation.documentId()))
+                .toList();
+            sessions.get(index).setReferenceDocs(citationsJson(citations));
+        }
+        return sessions;
     }
 
     /**
@@ -224,16 +243,19 @@ public class AiChatService {
         RouteType routeType,
         String question,
         String sessionId,
-        String knowledgeBaseId,
+        List<String> knowledgeBaseCodes,
         Long documentId,
-        List<Long> roleIds
+        Long userId
     ) {
         return switch (routeType) {
             case KNOWLEDGE_QA -> {
-                KnowledgeQaResult result = roleIds == null
-                    ? knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId)
-                    : knowledgeQaService.answer(question, sessionId, knowledgeBaseId, documentId,
-                        roleIds);
+                KnowledgeQaResult result = knowledgeQaService.answer(
+                    question,
+                    sessionId,
+                    knowledgeBaseCodes,
+                    documentId,
+                    userId
+                );
                 yield new BranchAnswer(result.answer(), result.citations());
             }
             case PRODUCT_QUERY, PRODUCT_COMPARE, PRODUCT_RECOMMEND, MANAGER_QUERY ->
@@ -305,7 +327,7 @@ public class AiChatService {
                     businessService.stream(
                         context.routeType(),
                         context.rewrittenQuestion(),
-                        context.request().sessionId()
+                        context.request().conversationKey()
                     ),
                     accumulator
                 );
@@ -313,7 +335,7 @@ public class AiChatService {
                 salesScriptService.stream(
                     context.rewrittenQuestion(),
                     null,
-                    context.request().sessionId()
+                    context.request().conversationKey()
                 ),
                 accumulator
             );
@@ -334,12 +356,13 @@ public class AiChatService {
         StreamContext context,
         StreamAccumulator accumulator
     ) {
-        Flux<KnowledgeQaResult> source = context.roleIds() == null
-            ? knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
-                context.request().knowledgeBaseId(), context.request().documentId())
-            : knowledgeQaService.stream(context.rewrittenQuestion(), context.request().sessionId(),
-                context.request().knowledgeBaseId(), context.request().documentId(),
-                context.roleIds());
+        Flux<KnowledgeQaResult> source = knowledgeQaService.stream(
+            context.rewrittenQuestion(),
+            context.request().conversationKey(),
+            context.request().knowledgeBaseCodes(),
+            context.request().documentId(),
+            context.request().userId()
+        );
         return source
             .map(chunk -> {
                 accumulator.append(chunk.answer());
@@ -450,8 +473,12 @@ public class AiChatService {
         return new StreamRequest(
             request,
             requireText(request.getSessionId(), "sessionId"),
+            ConversationKeys.scoped(
+                request.getUserId(),
+                requireText(request.getSessionId(), "sessionId")
+            ),
             requireText(request.getQuestion(), "question"),
-            normalizeKnowledgeBaseId(request.getKnowledgeBaseId()),
+            normalizeKnowledgeBaseCodes(request.getKnowledgeBaseCodes()),
             requirePositiveDocumentId(request.getDocumentId()),
             request.getUserId()
         );
@@ -475,6 +502,9 @@ public class AiChatService {
         }
         if (failure instanceof IllegalArgumentException) {
             return ChatStreamEvent.error(400, "\u8bf7\u6c42\u53c2\u6570\u4e0d\u6b63\u786e");
+        }
+        if (failure instanceof AccessDeniedException) {
+            return ChatStreamEvent.error(403, "没有权限访问所选知识库或文档");
         }
         return ChatStreamEvent.error(
             502,
@@ -501,8 +531,13 @@ public class AiChatService {
         if (userId == null) {
             return new BranchAnswer(answer.answer(), List.of());
         }
+        List<Long> candidateIds = answer.citations().stream()
+            .map(CitationDTO::documentId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
         Set<Long> accessibleDocIds = new HashSet<>(
-            docPermissionService.getAccessibleDocIds(userId)
+            docPermissionService.getAccessibleDocIds(userId, candidateIds)
         );
         List<CitationDTO> citations = answer.citations().stream()
             .filter(citation -> citation.documentId() != null
@@ -568,8 +603,22 @@ public class AiChatService {
     /**
      * 规范化知识库ID
      */
-    private String normalizeKnowledgeBaseId(String value) {
-        return KnowledgeBaseDefaults.normalizeCode(value);
+    private List<String> normalizeKnowledgeBaseCodes(List<String> values) {
+        if (values == null) {
+            throw new IllegalArgumentException("knowledgeBaseCodes must not be null");
+        }
+        List<String> normalized = values.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isEmpty())
+            .distinct()
+            .toList();
+        if (normalized.isEmpty() || normalized.size() > 5) {
+            throw new IllegalArgumentException(
+                "knowledgeBaseCodes must contain between 1 and 5 values"
+            );
+        }
+        return normalized;
     }
 
     /**
@@ -593,6 +642,27 @@ public class AiChatService {
         }
     }
 
+    private List<CitationDTO> parseStoredCitations(ChatSession session) {
+        String serialized = session.getReferenceDocs();
+        if (serialized == null || serialized.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<CitationDTO> citations = objectMapper.readValue(
+                serialized,
+                new TypeReference<>() {
+                }
+            );
+            return citations == null ? List.of() : List.copyOf(citations);
+        } catch (JsonProcessingException | RuntimeException failure) {
+            log.warn(
+                "Discarding invalid stored citations for chat record {}",
+                session.getId()
+            );
+            return List.of();
+        }
+    }
+
     /**
      * 分支答案内部记录类
      * <p>
@@ -607,8 +677,9 @@ public class AiChatService {
     private record StreamRequest(
         ChatRequestDTO source,
         String sessionId,
+        String conversationKey,
         String question,
-        String knowledgeBaseId,
+        List<String> knowledgeBaseCodes,
         Long documentId,
         Long userId
     ) {
@@ -617,8 +688,7 @@ public class AiChatService {
     private record StreamContext(
         StreamRequest request,
         String rewrittenQuestion,
-        RouteType routeType,
-        List<Long> roleIds
+        RouteType routeType
     ) {
     }
 

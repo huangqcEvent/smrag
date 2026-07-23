@@ -69,6 +69,7 @@ public class VectorReindexRunner implements ApplicationRunner {
     private final DocPermissionService permissionService;
     private final VectorStore vectorStore;
     private final VectorDocumentIdGenerator idGenerator;
+    private final VectorBatchWriter vectorBatchWriter;
 
     /**
      * 执行重建索引
@@ -111,7 +112,7 @@ public class VectorReindexRunner implements ApplicationRunner {
                     );
                 }
                 vectors = toVectorDocuments(document, currentChunks, readableRoleIds);
-                vectorStore.add(vectors);
+                vectorBatchWriter.add(vectors);
                 permissionService.synchronizeVectorAcl(document.getId());
                 chunkMapper.updateById(currentChunks, BATCH_SIZE);
                 successfulDocuments++;
@@ -157,14 +158,18 @@ public class VectorReindexRunner implements ApplicationRunner {
     ) {
         int version = document.getVersion() == null ? 1 : document.getVersion();
         int aclVersion = document.getAclVersion() == null ? 1 : document.getAclVersion();
-        String knowledgeBaseId =
-            KnowledgeBaseDefaults.normalizeCode(document.getKnowledgeBaseId());
+        Long knowledgeBaseId = document.getKnowledgeBaseId();
+        if (knowledgeBaseId == null) {
+            throw new IllegalStateException(
+                "Document " + document.getId() + " has no knowledge base"
+            );
+        }
         List<Document> vectors = new ArrayList<>(chunks.size());
         for (int position = 0; position < chunks.size(); position++) {
             KnowledgeChunk chunk = chunks.get(position);
             int chunkIndex = chunk.getChunkIndex() == null ? position : chunk.getChunkIndex();
             UUID vectorId = idGenerator.generate(
-                knowledgeBaseId,
+                String.valueOf(knowledgeBaseId),
                 document.getId(),
                 version,
                 chunkIndex
@@ -178,9 +183,7 @@ public class VectorReindexRunner implements ApplicationRunner {
             metadata.put("documentVersion", version);
             metadata.put("documentStatus", DocumentStatus.COMPLETED.name());
             metadata.put("chunkIndex", chunkIndex);
-            metadata.put("aclVersion", aclVersion);
-            metadata.put("aclDenied", false);
-            readableRoleIds.forEach(roleId -> metadata.put("aclRoleId_" + roleId, true));
+            metadata.put("documentAclVersion", aclVersion);
             putIfNotNull(metadata, "documentName", document.getName());
             putIfNotNull(metadata, "documentType", document.getFileType());
             putIfNotNull(metadata, "checksum", document.getChecksum());

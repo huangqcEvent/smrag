@@ -48,7 +48,9 @@ public class ChatSessionPersistenceService {
     @Transactional
     public void save(ChatSession session) {
         sessionMapper.insert(session);
-        chatMemory.add(session.getSessionId(), List.of(
+        chatMemory.add(ConversationKeys.scoped(
+            session.getUserId(), session.getSessionId()
+        ), List.of(
             new UserMessage(session.getQuestion()),
             new AssistantMessage(session.getAnswer())
         ));

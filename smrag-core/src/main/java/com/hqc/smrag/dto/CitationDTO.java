@@ -22,7 +22,9 @@ package com.hqc.smrag.dto;
 public record CitationDTO(
     String vectorId,
     Long documentId,
-    String knowledgeBaseId,
+    Long knowledgeBaseId,
+    String knowledgeBaseCode,
+    String knowledgeBaseName,
     String documentName,
     Integer chunkIndex,
     Integer pageNumber,

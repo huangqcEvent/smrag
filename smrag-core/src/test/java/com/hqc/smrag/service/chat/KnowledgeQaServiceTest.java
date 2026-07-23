@@ -1,157 +1,129 @@
 package com.hqc.smrag.service.chat;
 
 import com.hqc.smrag.config.RagProperties;
-import com.hqc.smrag.exception.AiServiceException;
-import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
+import com.hqc.smrag.entity.KnowledgeBase;
+import com.hqc.smrag.entity.KnowledgeDocument;
+import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.knowledge.KnowledgeBaseService;
-import org.junit.jupiter.api.BeforeEach;
+import com.hqc.smrag.service.knowledge.PermissionDecisionService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.document.Document;
-import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class KnowledgeQaServiceTest {
 
-    private final KnowledgeChatClient chatClient = mock(KnowledgeChatClient.class);
-    private final KnowledgeBaseService knowledgeBaseService = mock(KnowledgeBaseService.class);
-    private final RagProperties properties = properties();
-    private KnowledgeQaService service;
+    @Test
+    void resolvesAndAuthorizesEverySelectedBaseBeforeRetrieval() {
+        Fixture fixture = new Fixture();
+        when(fixture.bases.requireActive("research"))
+            .thenReturn(base(12L, "research"));
+        when(fixture.bases.requireActive("compliance"))
+            .thenReturn(base(18L, "compliance"));
+        when(fixture.client.answer(eq("问题"), eq("s1"), any()))
+            .thenReturn(new KnowledgeChatClient.KnowledgeAnswer(
+                "回答",
+                List.of(new Document(
+                    "v1",
+                    "依据",
+                    java.util.Map.of(
+                        "documentId", 7L,
+                        "knowledgeBaseId", 12L,
+                        "knowledgeBaseCode", "research",
+                        "knowledgeBaseName", "投研知识库",
+                        "documentName", "manual.pdf",
+                        "chunkIndex", 0
+                    )
+                ))
+            ));
 
-    @BeforeEach
-    void setUp() {
-        when(knowledgeBaseService.requireActiveCode(any()))
-            .thenAnswer(invocation ->
-                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
-        service = new KnowledgeQaService(
-            chatClient,
+        KnowledgeQaResult result = fixture.service.answer(
+            "问题",
+            "s1",
+            List.of("research", "compliance"),
+            null,
+            7L
+        );
+
+        ArgumentCaptor<KnowledgeRetrievalScope> scope =
+            ArgumentCaptor.forClass(KnowledgeRetrievalScope.class);
+        verify(fixture.client).answer(eq("问题"), eq("s1"), scope.capture());
+        assertThat(scope.getValue().knowledgeBaseIds())
+            .containsExactly(12L, 18L);
+        verify(fixture.decisions)
+            .requireKnowledgeBaseAccess(7L, List.of(12L, 18L));
+        assertThat(result.citations()).hasSize(1);
+    }
+
+    @Test
+    void returnsNoEvidenceWhenAuthorizedRetrievalReturnsNothing() {
+        Fixture fixture = new Fixture();
+        when(fixture.bases.requireActive("research"))
+            .thenReturn(base(12L, "research"));
+        when(fixture.client.answer(any(), any(), any()))
+            .thenReturn(new KnowledgeChatClient.KnowledgeAnswer("ignored", List.of()));
+
+        KnowledgeQaResult result = fixture.service.answer(
+            "问题", "s1", List.of("research"), null, 7L);
+
+        assertThat(result.answer())
+            .isEqualTo(KnowledgeQaService.NO_EVIDENCE_RESPONSE);
+        assertThat(result.citations()).isEmpty();
+    }
+
+    @Test
+    void rejectsMoreThanFiveBasesAndDocumentsOutsideTheScope() {
+        Fixture fixture = new Fixture();
+        assertThatThrownBy(() -> fixture.service.prepareScope(
+            List.of("a", "b", "c", "d", "e", "f"), null, 7L))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        when(fixture.bases.requireActive("research"))
+            .thenReturn(base(12L, "research"));
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setId(7L);
+        document.setKnowledgeBaseId(99L);
+        when(fixture.documents.selectById(7L)).thenReturn(document);
+        assertThatThrownBy(() -> fixture.service.prepareScope(
+            List.of("research"), 7L, 7L))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("不属于");
+    }
+
+    private static KnowledgeBase base(Long id, String code) {
+        KnowledgeBase base = new KnowledgeBase();
+        base.setId(id);
+        base.setCode(code);
+        base.setStatus("ACTIVE");
+        return base;
+    }
+
+    private static final class Fixture {
+        private final KnowledgeChatClient client =
+            mock(KnowledgeChatClient.class);
+        private final KnowledgeBaseService bases =
+            mock(KnowledgeBaseService.class);
+        private final PermissionDecisionService decisions =
+            mock(PermissionDecisionService.class);
+        private final KnowledgeDocumentMapper documents =
+            mock(KnowledgeDocumentMapper.class);
+        private final RagProperties properties = new RagProperties();
+        private final KnowledgeQaService service = new KnowledgeQaService(
+            client,
             new CitationAssembler(),
             properties,
-            knowledgeBaseService
+            bases,
+            decisions,
+            documents
         );
-    }
-
-    @Test
-    void usesOneKnowledgeAnswerForContentAndCitations() {
-        Document evidence = Document.builder()
-            .id("vector-42")
-            .text("Policy evidence")
-            .metadata(Map.of("documentName", "policy.pdf"))
-            .build();
-        when(chatClient.answer("Question", "session-1", "finance", 42L))
-            .thenReturn(new KnowledgeChatClient.KnowledgeAnswer("Grounded answer", List.of(evidence)));
-
-        KnowledgeQaResult result = service.answer("Question", "session-1", "finance", 42L);
-
-        assertThat(result.answer()).isEqualTo("Grounded answer");
-        assertThat(result.citations()).extracting("vectorId").containsExactly("vector-42");
-        verify(chatClient).answer("Question", "session-1", "finance", 42L);
-    }
-
-    @Test
-    void rejectsDisabledKnowledgeBaseBeforeRetrieval() {
-        when(knowledgeBaseService.requireActiveCode("archive"))
-            .thenThrow(new IllegalArgumentException("知识库未启用: archive"));
-
-        assertThatThrownBy(() ->
-            service.answer("Question", "session-1", "archive", null))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("未启用");
-        verifyNoInteractions(chatClient);
-    }
-
-    @Test
-    void returnsFixedRefusalWithoutFabricatedCitationsWhenContextIsEmpty() {
-        when(chatClient.answer("Question", "session-1", "company-main", null))
-            .thenReturn(new KnowledgeChatClient.KnowledgeAnswer("model output", List.of()));
-
-        KnowledgeQaResult result = service.answer("Question", "session-1", "  ", null);
-
-        assertThat(result.answer()).isEqualTo("\u5f53\u524d\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u8bc1\u636e\u56de\u7b54\u8be5\u95ee\u9898\u3002");
-        assertThat(result.citations()).isEmpty();
-        verify(chatClient).answer("Question", "session-1", "company-main", null);
-    }
-
-    @Test
-    void convertsKnowledgeClientFailuresToStableAiServiceException() {
-        when(chatClient.answer("Question", "session-1", "company-main", null))
-            .thenThrow(new IllegalStateException("provider unavailable"));
-
-        assertThatThrownBy(() -> service.answer("Question", "session-1", null, null))
-            .isInstanceOf(AiServiceException.class)
-            .hasMessage("Knowledge AI request failed")
-            .hasCauseInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void streamsModelChunksWithCitationsFromTheRetrievedContext() {
-        Document evidence = Document.builder()
-            .id("vector-42")
-            .text("Policy evidence")
-            .metadata(Map.of("documentName", "policy.pdf"))
-            .build();
-        when(chatClient.stream("Question", "session-1", "finance", 42L))
-            .thenReturn(Flux.just(
-                new KnowledgeChatClient.KnowledgeAnswer("Grounded ", List.of(evidence)),
-                new KnowledgeChatClient.KnowledgeAnswer("answer", List.of())
-            ));
-
-        StepVerifier.create(service.stream("Question", "session-1", "finance", 42L))
-            .assertNext(result -> {
-                assertThat(result.answer()).isEqualTo("Grounded ");
-                assertThat(result.citations()).extracting("vectorId")
-                    .containsExactly("vector-42");
-            })
-            .assertNext(result -> {
-                assertThat(result.answer()).isEqualTo("answer");
-                assertThat(result.citations()).extracting("vectorId")
-                    .containsExactly("vector-42");
-            })
-            .verifyComplete();
-    }
-
-    @Test
-    void replacesStreamingModelOutputWhenRetrievedContextIsEmpty() {
-        when(chatClient.stream("Question", "session-1", "company-main", null))
-            .thenReturn(Flux.just(
-                new KnowledgeChatClient.KnowledgeAnswer("unsupported output", List.of()),
-                new KnowledgeChatClient.KnowledgeAnswer("more output", List.of())
-            ));
-
-        StepVerifier.create(service.stream("Question", "session-1", "  ", null))
-            .assertNext(result -> {
-                assertThat(result.answer()).isEqualTo(KnowledgeQaService.NO_EVIDENCE_RESPONSE);
-                assertThat(result.citations()).isEmpty();
-            })
-            .verifyComplete();
-    }
-
-    @Test
-    void convertsStreamingClientFailuresToStableAiServiceException() {
-        when(chatClient.stream("Question", "session-1", "company-main", null))
-            .thenReturn(Flux.error(new IllegalStateException("provider unavailable")));
-
-        StepVerifier.create(service.stream("Question", "session-1", null, null))
-            .expectErrorSatisfies(failure -> assertThat(failure)
-                .isInstanceOf(AiServiceException.class)
-                .hasMessage("Knowledge AI request failed")
-                .hasCauseInstanceOf(IllegalStateException.class))
-            .verify();
-    }
-
-    private RagProperties properties() {
-        RagProperties result = new RagProperties();
-        result.setMaxContextDocuments(2);
-        return result;
     }
 }

@@ -20,12 +20,29 @@ public interface VectorAclMapper {
                     '{}'::jsonb
                 )
                 FROM jsonb_each(metadata::jsonb) entry
-            ) || CAST(#{aclMetadata} AS jsonb)
+            ) || jsonb_build_object(
+                'documentAclVersion', CAST(#{aclVersion} AS integer)
+            )
         )::json
         WHERE metadata->>'documentId' = CAST(#{documentId} AS text)
         """)
     int updateDocumentAcl(
         @Param("documentId") Long documentId,
-        @Param("aclMetadata") String aclMetadata
+        @Param("aclVersion") Integer aclVersion
+    );
+
+    @Update("""
+        UPDATE rag_vector_store
+        SET metadata = jsonb_set(
+            metadata::jsonb,
+            '{knowledgeBaseId}',
+            to_jsonb(CAST(#{knowledgeBaseId} AS bigint)),
+            true
+        )::json
+        WHERE document_id = #{documentId}
+        """)
+    int updateKnowledgeBase(
+        @Param("documentId") Long documentId,
+        @Param("knowledgeBaseId") Long knowledgeBaseId
     );
 }

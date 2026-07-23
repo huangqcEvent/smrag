@@ -2,11 +2,9 @@ package com.hqc.smrag.service.knowledge;
 
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
-import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentStorage;
 import com.hqc.smrag.service.storage.StoredObject;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -18,20 +16,15 @@ import java.nio.file.Path;
 public class DocumentFileService {
 
     private final KnowledgeDocumentMapper documentMapper;
-    private final DocPermissionService permissionService;
+    private final PermissionDecisionService permissionDecisionService;
     private final DocumentStorage storage;
-    private final KnowledgeBaseService knowledgeBaseService;
 
     public DocumentFile read(Long documentId, Long userId) {
         KnowledgeDocument document = documentMapper.selectById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("文档不存在");
         }
-        knowledgeBaseService.requireActiveCode(document.getKnowledgeBaseId());
-        if (userId == null
-            || !permissionService.getAccessibleDocIds(userId).contains(documentId)) {
-            throw new AccessDeniedException("没有权限查看该文档");
-        }
+        permissionDecisionService.requireDocumentRead(userId, documentId);
         try {
             if ("MINIO".equalsIgnoreCase(document.getStorageType())) {
                 try (StoredObject stored = storage.get(document.getObjectKey(), null, null)) {

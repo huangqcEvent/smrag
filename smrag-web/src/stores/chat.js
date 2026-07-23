@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { chatStream, getChatHistory, getUserSessions } from '@/api/chat'
 import { applyChatStreamEvent, createPendingChatMessage } from './chatStreamState'
 import { resetChatAccountState } from './chatAccountState'
-import { normalizeKnowledgeBaseCode } from '@/constants/knowledgeBase'
+import { validateKnowledgeBaseSelection } from '@/constants/knowledgeBase'
 
 export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref('')
@@ -12,6 +12,8 @@ export const useChatStore = defineStore('chat', () => {
   const sessionList = ref([])
   let activeController = null
   let activeMessage = null
+  let accountEpoch = 0
+  let historyEpoch = 0
 
   // 生成会话ID
   const generateSessionId = () => {
@@ -27,8 +29,10 @@ export const useChatStore = defineStore('chat', () => {
 
   // 加载会话列表
   const loadSessionList = async () => {
+    const requestAccountEpoch = accountEpoch
     try {
       const sessions = await getUserSessions()
+      if (requestAccountEpoch !== accountEpoch) return
       sessionList.value = sessions
     } catch (error) {
       console.error('加载会话列表失败:', error)
@@ -52,7 +56,9 @@ export const useChatStore = defineStore('chat', () => {
         sessionId: currentSessionId.value,
         question,
         userId: options.userId ?? null,
-        knowledgeBaseId: normalizeKnowledgeBaseCode(options.knowledgeBaseId),
+        knowledgeBaseCodes: validateKnowledgeBaseSelection(
+          options.knowledgeBaseCodes
+        ),
         documentId: options.documentId ?? null
       }, {
         signal: controller.signal,
@@ -104,8 +110,14 @@ export const useChatStore = defineStore('chat', () => {
   // 加载历史记录
   const loadHistory = async (sessionId) => {
     stopGeneration()
+    const requestAccountEpoch = accountEpoch
+    const requestHistoryEpoch = ++historyEpoch
     try {
       const history = await getChatHistory(sessionId)
+      if (
+        requestAccountEpoch !== accountEpoch ||
+        requestHistoryEpoch !== historyEpoch
+      ) return
       chatHistory.value = history.map(item => {
         let citations = []
         try {
@@ -136,6 +148,8 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const resetForAccountChange = () => {
+    accountEpoch += 1
+    historyEpoch += 1
     const state = {
       currentSessionId: currentSessionId.value,
       chatHistory: chatHistory.value,
