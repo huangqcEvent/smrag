@@ -93,6 +93,22 @@ class AiChatServiceTest {
     }
 
     @Test
+    void defaultsBlankKnowledgeScopeToCompanyMain() {
+        ChatRequestDTO request = request();
+        request.setKnowledgeBaseId(" ");
+        when(routeService.route("Rewritten question")).thenReturn(RouteType.KNOWLEDGE_QA);
+        when(knowledgeQaService.answer(
+            "Rewritten question", "session-1", "company-main", 42L
+        )).thenReturn(new KnowledgeQaResult("Grounded answer", List.of()));
+
+        service.ask(request);
+
+        verify(knowledgeQaService).answer(
+            "Rewritten question", "session-1", "company-main", 42L
+        );
+    }
+
+    @Test
     void rechecksPermissionsBeforeReturningAndPersistingCitations() {
         DocPermissionService permissionService = mock(DocPermissionService.class);
         service = new AiChatService(

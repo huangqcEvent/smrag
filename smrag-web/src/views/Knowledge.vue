@@ -7,14 +7,20 @@
       </div>
       <div class="toolbar-actions">
         <label for="knowledge-base">知识库</label>
-        <el-input
+        <el-select
           id="knowledge-base"
           v-model="knowledgeBaseId"
           size="small"
-          maxlength="64"
-          aria-label="知识库 ID"
+          aria-label="知识库"
           @change="fetchDocuments"
-        />
+        >
+          <el-option
+            v-for="knowledgeBase in knowledgeBases"
+            :key="knowledgeBase.code"
+            :label="knowledgeBase.name"
+            :value="knowledgeBase.code"
+          />
+        </el-select>
         <el-tooltip content="刷新文档列表" placement="bottom">
           <el-button
             text
@@ -287,8 +293,14 @@ const editingDocument = ref(null)
 const editingRoleCodes = ref([])
 const savingPermissions = ref(false)
 const viewerDocument = ref(null)
-const { documents, loading, knowledgeBaseId } = storeToRefs(knowledgeStore)
-const { fetchDocuments, upload, remove, updatePermissions } = knowledgeStore
+const { documents, loading, knowledgeBases, knowledgeBaseId } = storeToRefs(knowledgeStore)
+const {
+  fetchKnowledgeBases,
+  fetchDocuments,
+  upload,
+  remove,
+  updatePermissions
+} = knowledgeStore
 
 const customRoles = computed(() => roles.value.filter(role => !['ADMIN', 'USER'].includes(role.roleCode)))
 
@@ -297,6 +309,7 @@ const completedCount = computed(() => (
 ))
 
 onMounted(async () => {
+  await fetchKnowledgeBases()
   await fetchDocuments()
   if (authStore.isAdmin) {
     roles.value = await getRoles()
@@ -441,8 +454,8 @@ const statusClass = (status) => `status-${String(status || 'PENDING').toLowerCas
   font-size: 0.75rem;
 }
 
-.toolbar-actions .el-input {
-  width: 140px;
+.toolbar-actions .el-select {
+  width: 160px;
 }
 
 .knowledge-content {
@@ -841,7 +854,7 @@ const statusClass = (status) => `status-${String(status || 'PENDING').toLowerCas
     width: 100%;
   }
 
-  .toolbar-actions .el-input {
+  .toolbar-actions .el-select {
     flex: 1;
     width: auto;
   }

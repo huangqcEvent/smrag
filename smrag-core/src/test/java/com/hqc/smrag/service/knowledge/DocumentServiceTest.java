@@ -47,12 +47,20 @@ class DocumentServiceTest {
     private final RagProperties properties = new RagProperties();
     private final DocPermissionService docPermissionService = mock(DocPermissionService.class);
     private final DocumentStorage documentStorage = mock(DocumentStorage.class);
+    private final KnowledgeBaseService knowledgeBaseService = mock(KnowledgeBaseService.class);
 
     @BeforeAll
     static void initializeMybatisMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "test");
         TableInfoHelper.initTableInfo(assistant, KnowledgeDocument.class);
         TableInfoHelper.initTableInfo(assistant, KnowledgeChunk.class);
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void configureKnowledgeBase() {
+        when(knowledgeBaseService.requireActiveCode(any()))
+            .thenAnswer(invocation ->
+                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
     }
 
     @Test
@@ -111,7 +119,7 @@ class DocumentServiceTest {
         assertThat(document.getStorageType()).isEqualTo("MINIO");
         assertThat(document.getFileType()).isEqualTo("PDF");
         assertThat(document.getStatus()).isEqualTo(DocumentStatus.PENDING.name());
-        assertThat(document.getKnowledgeBaseId()).isEqualTo("default");
+        assertThat(document.getKnowledgeBaseId()).isEqualTo("company-main");
         assertThat(document.getVersion()).isEqualTo(1);
         assertThat(document.getProcessingToken()).isNotNull();
         verify(uploadPersistenceService).completeUpload(
@@ -168,7 +176,7 @@ class DocumentServiceTest {
     void deleteRemovesVectorsBeforeRelationalRecords() {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId("company-main");
         document.setFilePath(uploadDir.resolve("document.pdf").toString());
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
@@ -190,7 +198,7 @@ class DocumentServiceTest {
     void deleteKeepsRelationalRecordsWhenVectorDeletionFails() {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId("company-main");
         document.setFilePath(uploadDir.resolve("document.pdf").toString());
         UUID vectorId = UUID.randomUUID();
         when(documentMapper.selectById(42L)).thenReturn(document);
@@ -216,7 +224,8 @@ class DocumentServiceTest {
             uploadDir.toString(),
             docPermissionService,
             documentStorage,
-            "rag/document"
+            "rag/document",
+            knowledgeBaseService
         );
     }
 

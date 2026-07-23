@@ -3,6 +3,7 @@ package com.hqc.smrag.service.chat;
 import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.dto.CitationDTO;
 import com.hqc.smrag.exception.AiServiceException;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -37,6 +38,7 @@ public class KnowledgeQaService {
     private final KnowledgeChatClient chatClient;
     private final CitationAssembler citationAssembler;
     private final RagProperties ragProperties;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     public KnowledgeQaResult answer(String question, String sessionId,
                                     String knowledgeBaseId, Long documentId) {
@@ -117,7 +119,7 @@ public class KnowledgeQaService {
      * <p>
      * 调用链路：
      * <ol>
-     *     <li>规范化知识库ID（空值返回 "default"）</li>
+     *     <li>规范化知识库 code（空值返回 "company-main"）</li>
      *     <li>调用 SpringAiKnowledgeChatClient.stream() 进行流式生成</li>
      *     <li>SpringAiKnowledgeChatClient 构建 RAG Advisor：
      *       <ul>
@@ -199,11 +201,9 @@ public class KnowledgeQaService {
     /**
      * 规范化知识库ID
      * <p>
-     * 如果知识库ID为空或空白，返回默认值 "default"。
+     * 如果知识库 code 为空、空白或为旧值 default，返回 company-main。
      */
     private String normalizeKnowledgeBaseId(String knowledgeBaseId) {
-        return knowledgeBaseId == null || knowledgeBaseId.isBlank()
-            ? "default"
-            : knowledgeBaseId.trim();
+        return knowledgeBaseService.requireActiveCode(knowledgeBaseId);
     }
 }

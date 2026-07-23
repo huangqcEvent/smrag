@@ -158,13 +158,19 @@
       <div class="scope-row">
         <el-icon><Collection /></el-icon>
         <label for="knowledge-base">知识库</label>
-        <el-input
+        <el-select
           id="knowledge-base"
           v-model="knowledgeBaseId"
           size="small"
-          maxlength="64"
-          aria-label="知识库 ID"
-        />
+          aria-label="知识库"
+        >
+          <el-option
+            v-for="knowledgeBase in knowledgeBases"
+            :key="knowledgeBase.code"
+            :label="knowledgeBase.name"
+            :value="knowledgeBase.code"
+          />
+        </el-select>
       </div>
       <div class="composer">
         <el-input
@@ -229,14 +235,16 @@ import { ElMessage } from 'element-plus'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import DocumentViewer from '@/components/DocumentViewer.vue'
 import { useChatStore } from '@/stores/chat'
+import { useKnowledgeStore } from '@/stores/knowledge'
 import { resetScrollAfterHistoryLoad, shouldAutoScroll } from '@/utils/chatScrollState'
 
 const chatStore = useChatStore()
+const knowledgeStore = useKnowledgeStore()
 const question = ref('')
 const viewerDocument = ref(null)
-const knowledgeBaseId = ref('default')
 const messagesContainer = ref(null)
 const { chatHistory, loading, sessionList, currentSessionId } = storeToRefs(chatStore)
+const { knowledgeBases, knowledgeBaseId } = storeToRefs(knowledgeStore)
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 let scrollFrame = 0
 
@@ -277,6 +285,7 @@ const scrollToBottom = (smooth = true) => {
 }
 
 onMounted(() => {
+  knowledgeStore.fetchKnowledgeBases()
   chatStore.initSession()
   chatStore.loadSessionList()
   messagesContainer.value?.addEventListener('scroll', handleScroll, { passive: true })
@@ -308,7 +317,7 @@ const handleSend = async () => {
   question.value = ''
   try {
     await chatStore.askQuestion(value, {
-      knowledgeBaseId: knowledgeBaseId.value.trim() || 'default'
+      knowledgeBaseId: knowledgeBaseId.value
     })
   } catch {
     question.value = value
@@ -936,8 +945,8 @@ const liveStatus = computed(() => {
   font-size: 0.72rem;
 }
 
-.scope-row .el-input {
-  width: 130px;
+.scope-row .el-select {
+  width: 160px;
 }
 
 .composer {

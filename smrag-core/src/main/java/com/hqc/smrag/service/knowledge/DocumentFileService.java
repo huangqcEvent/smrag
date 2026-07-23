@@ -20,12 +20,14 @@ public class DocumentFileService {
     private final KnowledgeDocumentMapper documentMapper;
     private final DocPermissionService permissionService;
     private final DocumentStorage storage;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     public DocumentFile read(Long documentId, Long userId) {
         KnowledgeDocument document = documentMapper.selectById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("文档不存在");
         }
+        knowledgeBaseService.requireActiveCode(document.getKnowledgeBaseId());
         if (userId == null
             || !permissionService.getAccessibleDocIds(userId).contains(documentId)) {
             throw new AccessDeniedException("没有权限查看该文档");

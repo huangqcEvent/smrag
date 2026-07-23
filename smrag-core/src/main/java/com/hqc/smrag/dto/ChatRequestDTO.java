@@ -51,7 +51,7 @@ public class ChatRequestDTO {
     /**
      * 知识库ID（可选）
      * <p>
-     * 指定检索的知识库，默认为 "default"。
+     * 指定检索的知识库稳定 code，默认为 "company-main"。
      */
     @Size(max = 128)
     private String knowledgeBaseId;

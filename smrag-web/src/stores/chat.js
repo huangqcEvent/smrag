@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { chatStream, getChatHistory, getUserSessions } from '@/api/chat'
 import { applyChatStreamEvent, createPendingChatMessage } from './chatStreamState'
 import { resetChatAccountState } from './chatAccountState'
+import { normalizeKnowledgeBaseCode } from '@/constants/knowledgeBase'
 
 export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref('')
@@ -51,7 +52,7 @@ export const useChatStore = defineStore('chat', () => {
         sessionId: currentSessionId.value,
         question,
         userId: options.userId ?? null,
-        knowledgeBaseId: options.knowledgeBaseId || 'default',
+        knowledgeBaseId: normalizeKnowledgeBaseCode(options.knowledgeBaseId),
         documentId: options.documentId ?? null
       }, {
         signal: controller.signal,

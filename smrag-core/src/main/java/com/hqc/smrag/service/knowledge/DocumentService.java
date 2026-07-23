@@ -65,7 +65,6 @@ public class DocumentService {
 
     private static final String DEFAULT_UPLOAD_DIR =
         System.getProperty("user.dir") + File.separator + "uploads";
-    private static final String DEFAULT_KNOWLEDGE_BASE = "default";
     private final KnowledgeDocumentMapper documentMapper;
     private final KnowledgeChunkMapper chunkMapper;
     private final DocumentUploadPersistenceService uploadPersistenceService;
@@ -75,6 +74,7 @@ public class DocumentService {
     private final DocPermissionService docPermissionService;
     private final DocumentStorage documentStorage;
     private final String objectPrefix;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     @Autowired
     public DocumentService(
@@ -85,6 +85,7 @@ public class DocumentService {
         RagProperties properties,
         DocPermissionService docPermissionService,
         DocumentStorage documentStorage,
+        KnowledgeBaseService knowledgeBaseService,
         MinioStorageProperties storageProperties
     ) {
         this(
@@ -96,7 +97,8 @@ public class DocumentService {
             DEFAULT_UPLOAD_DIR,
             docPermissionService,
             documentStorage,
-            storageProperties.getObjectPrefix()
+            storageProperties.getObjectPrefix(),
+            knowledgeBaseService
         );
     }
 
@@ -109,7 +111,8 @@ public class DocumentService {
         String uploadDir,
         DocPermissionService docPermissionService,
         DocumentStorage documentStorage,
-        String objectPrefix
+        String objectPrefix,
+        KnowledgeBaseService knowledgeBaseService
     ) {
         this.documentMapper = documentMapper;
         this.chunkMapper = chunkMapper;
@@ -120,6 +123,7 @@ public class DocumentService {
         this.docPermissionService = docPermissionService;
         this.documentStorage = documentStorage;
         this.objectPrefix = objectPrefix;
+        this.knowledgeBaseService = knowledgeBaseService;
     }
 
     /**
@@ -130,7 +134,11 @@ public class DocumentService {
      * @throws IOException 文件处理异常
      */
     public Long uploadDocument(MultipartFile file) throws IOException {
-        return uploadDocument(file, DEFAULT_KNOWLEDGE_BASE, List.of("ADMIN", "USER"));
+        return uploadDocument(
+            file,
+            KnowledgeBaseDefaults.MAIN_CODE,
+            List.of("ADMIN", "USER")
+        );
     }
 
     /**
@@ -170,7 +178,8 @@ public class DocumentService {
         if (normalizedRoles.isEmpty()) {
             throw new IllegalArgumentException("文档至少需要一个可读角色");
         }
-        String normalizedKnowledgeBaseId = normalizeKnowledgeBaseId(knowledgeBaseId);
+        String normalizedKnowledgeBaseId =
+            knowledgeBaseService.requireActiveCode(knowledgeBaseId);
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String fileType = getFileType(fileName);
         if ("UNKNOWN".equals(fileType)) {
@@ -243,7 +252,7 @@ public class DocumentService {
      * @return 文档列表
      */
     public List<KnowledgeDocument> listDocuments() {
-        return listDocuments(DEFAULT_KNOWLEDGE_BASE);
+        return listDocuments(KnowledgeBaseDefaults.MAIN_CODE);
     }
 
     /**
@@ -253,7 +262,7 @@ public class DocumentService {
      * @return 文档列表
      */
     public List<KnowledgeDocument> listDocuments(String knowledgeBaseId) {
-        String normalized = normalizeKnowledgeBaseId(knowledgeBaseId);
+        String normalized = knowledgeBaseService.requireActiveCode(knowledgeBaseId);
         return documentMapper.selectList(
             Wrappers.<KnowledgeDocument>lambdaQuery()
                 .eq(KnowledgeDocument::getKnowledgeBaseId, normalized)
@@ -266,7 +275,7 @@ public class DocumentService {
      * @param id 文档ID
      */
     public void deleteDocument(Long id) {
-        deleteDocument(id, DEFAULT_KNOWLEDGE_BASE);
+        deleteDocument(id, KnowledgeBaseDefaults.MAIN_CODE);
     }
 
     /**
@@ -286,7 +295,7 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocument(Long id, String knowledgeBaseId) {
-        String normalized = normalizeKnowledgeBaseId(knowledgeBaseId);
+        String normalized = knowledgeBaseService.requireActiveCode(knowledgeBaseId);
         KnowledgeDocument document = documentMapper.selectById(id);
         if (document == null || !normalized.equals(document.getKnowledgeBaseId())) {
             return;
@@ -423,22 +432,4 @@ public class DocumentService {
         return fileName;
     }
 
-    /**
-     * 规范化知识库ID
-     * <p>
-     * 校验知识库ID格式，只允许字母、数字、点、下划线、横线。
-     *
-     * @param knowledgeBaseId 知识库ID
-     * @return 规范化后的知识库ID
-     * @throws IllegalArgumentException 知识库ID格式非法时抛出
-     */
-    private String normalizeKnowledgeBaseId(String knowledgeBaseId) {
-        String normalized = knowledgeBaseId == null || knowledgeBaseId.isBlank()
-            ? DEFAULT_KNOWLEDGE_BASE
-            : knowledgeBaseId.trim();
-        if (!normalized.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")) {
-            throw new IllegalArgumentException("知识库 ID 格式不合法");
-        }
-        return normalized;
-    }
 }

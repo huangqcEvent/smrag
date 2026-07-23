@@ -54,7 +54,9 @@ class RagSchemaMigrationTest {
             assertTableExists(postgres, "spring_ai_chat_memory");
             assertIndexExists(postgres, "rag_vector_store_embedding_hnsw_idx");
             assertIndexExists(postgres, "idx_doc_permission_role_document");
+            assertForeignKeyExists(postgres, "knowledge_document", "fk_knowledge_document_base");
             assertAclBackfill(postgres);
+            assertKnowledgeBaseResource(postgres);
         }
     }
 
@@ -74,7 +76,8 @@ class RagSchemaMigrationTest {
                 VALUES
                     (
                         'granted',
-                        '{"documentId":9001,"aclVersion":2,"aclDenied":false,'
+                        '{"documentId":9001,"knowledgeBaseId":"default",'
+                        '"aclVersion":2,"aclDenied":false,'
                         '"aclRole_ADMIN":true,"aclRoleId_999":true}'
                     ),
                     (
@@ -90,9 +93,10 @@ class RagSchemaMigrationTest {
         try (Connection connection = postgres.createConnection("");
              Statement statement = connection.createStatement();
              ResultSet rows = statement.executeQuery("""
-                 SELECT
-                     metadata->>'documentId' AS document_id,
-                     metadata->>'aclVersion' AS acl_version,
+                SELECT
+                    metadata->>'documentId' AS document_id,
+                    metadata->>'knowledgeBaseId' AS knowledge_base_id,
+                    metadata->>'aclVersion' AS acl_version,
                      metadata->>'aclDenied' AS acl_denied,
                      metadata->>(
                          'aclRoleId_' || (
@@ -108,6 +112,7 @@ class RagSchemaMigrationTest {
                  """)) {
             assertThat(rows.next()).isTrue();
             assertThat(rows.getString("document_id")).isEqualTo("9001");
+            assertThat(rows.getString("knowledge_base_id")).isEqualTo("company-main");
             assertThat(rows.getString("acl_version")).isEqualTo("2");
             assertThat(rows.getString("acl_denied")).isEqualTo("false");
             assertThat(rows.getString("admin_role")).isEqualTo("true");
@@ -115,12 +120,49 @@ class RagSchemaMigrationTest {
             assertThat(rows.getString("stale_role_id")).isNull();
             assertThat(rows.next()).isTrue();
             assertThat(rows.getString("document_id")).isEqualTo("9002");
+            assertThat(rows.getString("knowledge_base_id")).isEqualTo("company-main");
             assertThat(rows.getString("acl_version")).isEqualTo("5");
             assertThat(rows.getString("acl_denied")).isEqualTo("true");
             assertThat(rows.getString("admin_role")).isNull();
             assertThat(rows.getString("legacy_stale_role")).isNull();
             assertThat(rows.getString("stale_role_id")).isNull();
             assertThat(rows.next()).isFalse();
+        }
+    }
+
+    private void assertKnowledgeBaseResource(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = postgres.createConnection("");
+             Statement statement = connection.createStatement()) {
+            try (ResultSet knowledgeBase = statement.executeQuery("""
+                SELECT name, status
+                FROM knowledge_base
+                WHERE code = 'company-main'
+                """)) {
+                assertThat(knowledgeBase.next()).isTrue();
+                assertThat(knowledgeBase.getString("name")).isEqualTo("企业知识库");
+                assertThat(knowledgeBase.getString("status")).isEqualTo("ACTIVE");
+                assertThat(knowledgeBase.next()).isFalse();
+            }
+            try (ResultSet migratedDocuments = statement.executeQuery("""
+                SELECT COUNT(*) AS document_count
+                FROM knowledge_document
+                WHERE id IN (9001, 9002)
+                  AND knowledge_base_id = 'company-main'
+                """)) {
+                assertThat(migratedDocuments.next()).isTrue();
+                assertThat(migratedDocuments.getInt("document_count")).isEqualTo(2);
+            }
+            try (ResultSet columnDefault = statement.executeQuery("""
+                SELECT column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'knowledge_document'
+                  AND column_name = 'knowledge_base_id'
+                """)) {
+                assertThat(columnDefault.next()).isTrue();
+                assertThat(columnDefault.getString("column_default"))
+                    .contains("company-main");
+            }
         }
     }
 
@@ -155,6 +197,24 @@ class RagSchemaMigrationTest {
                  WHERE schemaname = 'public' AND indexname = '%s'
                  """.formatted(index))) {
             assertThat(indexes.next()).isTrue();
+        }
+    }
+
+    private void assertForeignKeyExists(
+        PostgreSQLContainer<?> postgres,
+        String table,
+        String constraint
+    ) throws Exception {
+        try (Connection connection = postgres.createConnection("");
+             Statement statement = connection.createStatement();
+             ResultSet constraints = statement.executeQuery("""
+                 SELECT 1
+                 FROM pg_constraint
+                 WHERE conname = '%s'
+                   AND conrelid = 'public.%s'::regclass
+                   AND contype = 'f'
+                 """.formatted(constraint, table))) {
+            assertThat(constraints.next()).isTrue();
         }
     }
 }

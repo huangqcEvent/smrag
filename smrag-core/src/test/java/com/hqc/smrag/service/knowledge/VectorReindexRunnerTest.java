@@ -45,7 +45,7 @@ class VectorReindexRunnerTest {
         );
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId("company-main");
         document.setName("legacy.pdf");
         document.setFileType("PDF");
         document.setVersion(1);
@@ -100,7 +100,7 @@ class VectorReindexRunnerTest {
         );
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
-        document.setKnowledgeBaseId("default");
+        document.setKnowledgeBaseId(null);
         document.setName("legacy.pdf");
         document.setFileType("PDF");
         document.setVersion(2);
@@ -117,7 +117,7 @@ class VectorReindexRunnerTest {
         runner.run(new DefaultApplicationArguments());
 
         String expectedId = new VectorDocumentIdGenerator()
-            .generate("default", 42L, 2, 0)
+            .generate("company-main", 42L, 2, 0)
             .toString();
         verify(vectorStore).delete(List.of(expectedId));
     }

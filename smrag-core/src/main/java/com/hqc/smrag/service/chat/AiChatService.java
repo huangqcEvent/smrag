@@ -11,6 +11,7 @@ import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import com.hqc.smrag.exception.AiServiceException;
 import com.hqc.smrag.service.DocPermissionService;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -568,7 +569,7 @@ public class AiChatService {
      * 规范化知识库ID
      */
     private String normalizeKnowledgeBaseId(String value) {
-        return value == null || value.isBlank() ? "default" : value.trim();
+        return KnowledgeBaseDefaults.normalizeCode(value);
     }
 
     /**

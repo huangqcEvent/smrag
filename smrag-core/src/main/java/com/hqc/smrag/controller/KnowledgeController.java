@@ -1,11 +1,11 @@
 package com.hqc.smrag.controller;
 
 import com.hqc.smrag.common.Result;
-import com.hqc.smrag.dto.SetDocPermissionRequest;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.knowledge.DocumentService;
 import com.hqc.smrag.service.knowledge.DocumentFileService;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
 import com.hqc.smrag.vo.DocumentVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -75,7 +75,7 @@ public class KnowledgeController {
      * 上传后，文档会被发送到 Kafka 进行异步解析和向量化处理。
      *
      * @param file            上传的文件
-     * @param knowledgeBaseId 知识库ID，默认为 "default"
+     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
      * @param roles           可访问的角色列表，逗号分隔，如 "ADMIN,USER"，默认为 "ADMIN,USER"
      * @return 上传成功的文档ID
      * @throws Exception 文件上传或处理异常
@@ -84,7 +84,10 @@ public class KnowledgeController {
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Long> upload(
         @RequestParam("file") MultipartFile file,
-        @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId,
+        @RequestParam(
+            value = "knowledgeBaseId",
+            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
+        ) String knowledgeBaseId,
         @RequestParam(value = "roles", defaultValue = "ADMIN,USER") String roles
     ) throws Exception {
         List<String> roleCodes = java.util.Arrays.stream(roles.split(","))
@@ -111,14 +114,17 @@ public class KnowledgeController {
      * <p>
      * 普通用户只能看到有权限访问的文档。
      *
-     * @param knowledgeBaseId 知识库ID，默认为 "default"
+     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
      * @param userId          当前用户ID（从 JWT 中获取）
      * @return 文档列表
      */
     @GetMapping("/list")
     @PreAuthorize("isAuthenticated()")
     public Result<List<DocumentVO>> list(
-        @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId,
+        @RequestParam(
+            value = "knowledgeBaseId",
+            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
+        ) String knowledgeBaseId,
         @AuthenticationPrincipal Long userId
     ) {
         // 获取用户可访问的文档ID
@@ -162,14 +168,17 @@ public class KnowledgeController {
      * 注意：删除操作不可逆，请谨慎操作。
      *
      * @param id              文档ID
-     * @param knowledgeBaseId 知识库ID，默认为 "default"
+     * @param knowledgeBaseId 知识库稳定 code，默认为企业知识库
      * @return 空结果
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> delete(
         @PathVariable Long id,
-        @RequestParam(value = "knowledgeBaseId", defaultValue = "default") String knowledgeBaseId
+        @RequestParam(
+            value = "knowledgeBaseId",
+            defaultValue = KnowledgeBaseDefaults.MAIN_CODE
+        ) String knowledgeBaseId
     ) {
         documentService.deleteDocument(id, knowledgeBaseId);
         return Result.success();

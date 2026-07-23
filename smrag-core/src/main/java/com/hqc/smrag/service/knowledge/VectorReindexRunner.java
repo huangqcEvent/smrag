@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -158,7 +157,8 @@ public class VectorReindexRunner implements ApplicationRunner {
     ) {
         int version = document.getVersion() == null ? 1 : document.getVersion();
         int aclVersion = document.getAclVersion() == null ? 1 : document.getAclVersion();
-        String knowledgeBaseId = Objects.requireNonNullElse(document.getKnowledgeBaseId(), "default");
+        String knowledgeBaseId =
+            KnowledgeBaseDefaults.normalizeCode(document.getKnowledgeBaseId());
         List<Document> vectors = new ArrayList<>(chunks.size());
         for (int position = 0; position < chunks.size(); position++) {
             KnowledgeChunk chunk = chunks.get(position);

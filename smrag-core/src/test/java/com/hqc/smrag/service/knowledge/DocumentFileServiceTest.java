@@ -24,8 +24,9 @@ class DocumentFileServiceTest {
     private final KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
     private final DocPermissionService permissions = mock(DocPermissionService.class);
     private final DocumentStorage storage = mock(DocumentStorage.class);
+    private final KnowledgeBaseService knowledgeBases = mock(KnowledgeBaseService.class);
     private final DocumentFileService service =
-        new DocumentFileService(mapper, permissions, storage);
+        new DocumentFileService(mapper, permissions, storage, knowledgeBases);
 
     @Test
     void returnsMinioFileForAuthorizedUser() {
@@ -55,6 +56,20 @@ class DocumentFileServiceTest {
         verify(storage, never()).get("rag/document/42/manual.pdf", null, null);
     }
 
+    @Test
+    void deniesFileFromDisabledKnowledgeBaseBeforeCheckingDocumentPermission() {
+        when(mapper.selectById(42L)).thenReturn(document());
+        when(knowledgeBases.requireActiveCode("company-main"))
+            .thenThrow(new IllegalArgumentException("知识库未启用"));
+
+        assertThatThrownBy(() -> service.read(42L, 7L))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("知识库未启用");
+
+        verify(permissions, never()).getAccessibleDocIds(7L);
+        verify(storage, never()).get("rag/document/42/manual.pdf", null, null);
+    }
+
     private KnowledgeDocument document() {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
@@ -62,6 +77,7 @@ class DocumentFileServiceTest {
         document.setFileType("PDF");
         document.setStorageType("MINIO");
         document.setObjectKey("rag/document/42/manual.pdf");
+        document.setKnowledgeBaseId("company-main");
         return document;
     }
 }

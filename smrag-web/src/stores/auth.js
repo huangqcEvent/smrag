@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { login as loginApi, refreshToken as refreshTokenApi, getCurrentUser, logout as logoutApi } from '@/api/auth'
 import router from '@/router'
 import { useChatStore } from '@/stores/chat'
+import { useKnowledgeStore } from '@/stores/knowledge'
 
 export const useAuthStore = defineStore('auth', () => {
   // 状态
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await loginApi({ username, password })
       useChatStore().resetForAccountChange()
+      useKnowledgeStore().resetForAccountChange()
       setTokens(response.accessToken, response.refreshToken)
       user.value = response.user
       return response
@@ -41,6 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     // 清除状态
     useChatStore().resetForAccountChange()
+    useKnowledgeStore().resetForAccountChange()
     clearTokens()
     user.value = null
   }

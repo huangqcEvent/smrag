@@ -2,6 +2,9 @@ package com.hqc.smrag.service.chat;
 
 import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.exception.AiServiceException;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseDefaults;
+import com.hqc.smrag.service.knowledge.KnowledgeBaseService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import reactor.core.publisher.Flux;
@@ -12,16 +15,31 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class KnowledgeQaServiceTest {
 
     private final KnowledgeChatClient chatClient = mock(KnowledgeChatClient.class);
+    private final KnowledgeBaseService knowledgeBaseService = mock(KnowledgeBaseService.class);
     private final RagProperties properties = properties();
-    private final KnowledgeQaService service =
-        new KnowledgeQaService(chatClient, new CitationAssembler(), properties);
+    private KnowledgeQaService service;
+
+    @BeforeEach
+    void setUp() {
+        when(knowledgeBaseService.requireActiveCode(any()))
+            .thenAnswer(invocation ->
+                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
+        service = new KnowledgeQaService(
+            chatClient,
+            new CitationAssembler(),
+            properties,
+            knowledgeBaseService
+        );
+    }
 
     @Test
     void usesOneKnowledgeAnswerForContentAndCitations() {
@@ -41,20 +59,32 @@ class KnowledgeQaServiceTest {
     }
 
     @Test
+    void rejectsDisabledKnowledgeBaseBeforeRetrieval() {
+        when(knowledgeBaseService.requireActiveCode("archive"))
+            .thenThrow(new IllegalArgumentException("知识库未启用: archive"));
+
+        assertThatThrownBy(() ->
+            service.answer("Question", "session-1", "archive", null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("未启用");
+        verifyNoInteractions(chatClient);
+    }
+
+    @Test
     void returnsFixedRefusalWithoutFabricatedCitationsWhenContextIsEmpty() {
-        when(chatClient.answer("Question", "session-1", "default", null))
+        when(chatClient.answer("Question", "session-1", "company-main", null))
             .thenReturn(new KnowledgeChatClient.KnowledgeAnswer("model output", List.of()));
 
         KnowledgeQaResult result = service.answer("Question", "session-1", "  ", null);
 
         assertThat(result.answer()).isEqualTo("\u5f53\u524d\u77e5\u8bc6\u5e93\u4e2d\u6ca1\u6709\u8db3\u591f\u8bc1\u636e\u56de\u7b54\u8be5\u95ee\u9898\u3002");
         assertThat(result.citations()).isEmpty();
-        verify(chatClient).answer("Question", "session-1", "default", null);
+        verify(chatClient).answer("Question", "session-1", "company-main", null);
     }
 
     @Test
     void convertsKnowledgeClientFailuresToStableAiServiceException() {
-        when(chatClient.answer("Question", "session-1", "default", null))
+        when(chatClient.answer("Question", "session-1", "company-main", null))
             .thenThrow(new IllegalStateException("provider unavailable"));
 
         assertThatThrownBy(() -> service.answer("Question", "session-1", null, null))
@@ -92,7 +122,7 @@ class KnowledgeQaServiceTest {
 
     @Test
     void replacesStreamingModelOutputWhenRetrievedContextIsEmpty() {
-        when(chatClient.stream("Question", "session-1", "default", null))
+        when(chatClient.stream("Question", "session-1", "company-main", null))
             .thenReturn(Flux.just(
                 new KnowledgeChatClient.KnowledgeAnswer("unsupported output", List.of()),
                 new KnowledgeChatClient.KnowledgeAnswer("more output", List.of())
@@ -108,7 +138,7 @@ class KnowledgeQaServiceTest {
 
     @Test
     void convertsStreamingClientFailuresToStableAiServiceException() {
-        when(chatClient.stream("Question", "session-1", "default", null))
+        when(chatClient.stream("Question", "session-1", "company-main", null))
             .thenReturn(Flux.error(new IllegalStateException("provider unavailable")));
 
         StepVerifier.create(service.stream("Question", "session-1", null, null))

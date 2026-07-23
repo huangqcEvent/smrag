@@ -38,6 +38,14 @@ class DocumentMinioUploadTest {
     private final VectorStore vectorStore = mock(VectorStore.class);
     private final DocPermissionService permissionService = mock(DocPermissionService.class);
     private final DocumentStorage storage = mock(DocumentStorage.class);
+    private final KnowledgeBaseService knowledgeBaseService = mock(KnowledgeBaseService.class);
+
+    @org.junit.jupiter.api.BeforeEach
+    void configureKnowledgeBase() {
+        when(knowledgeBaseService.requireActiveCode(any()))
+            .thenAnswer(invocation ->
+                KnowledgeBaseDefaults.normalizeCode(invocation.getArgument(0)));
+    }
 
     @Test
     void rejectsEmptyRolesBeforeCreatingPlaceholderOrWritingObject() {
@@ -93,7 +101,8 @@ class DocumentMinioUploadTest {
     private DocumentService service() {
         return new DocumentService(
             documentMapper, chunkMapper, persistence, vectorStore, new RagProperties(),
-            uploadDir.toString(), permissionService, storage, "rag/document");
+            uploadDir.toString(), permissionService, storage, "rag/document",
+            knowledgeBaseService);
     }
 
     private MockMultipartFile file() {
