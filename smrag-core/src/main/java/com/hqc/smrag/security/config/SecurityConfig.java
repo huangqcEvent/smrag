@@ -97,6 +97,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // 公开接口
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                        // 仅公开无详情的健康检查，供容器编排探活
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         // 静态资源
                         .requestMatchers(HttpMethod.GET, "/", "/index.html", "/favicon.ico", "/assets/**").permitAll()
                         // 其他请求需要认证

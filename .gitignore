@@ -14,10 +14,12 @@ logs/
 
 # Env
 .env
+.env.prod
 application-local.yml
 
 # Uploads
 uploads/
+backups/
 
 # Isolated feature worktrees
 .worktrees/

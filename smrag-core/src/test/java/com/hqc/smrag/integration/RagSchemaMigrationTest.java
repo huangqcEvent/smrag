@@ -74,10 +74,20 @@ class RagSchemaMigrationTest {
             assertIndexExists(postgres, "idx_rag_vector_store_acl");
             assertForeignKeyExists(postgres, "knowledge_document", "fk_knowledge_document_base");
             assertLegacyGlobalAdminAclRemoved(postgres, legacyAclIds);
+            assertSeededAdministratorIsLocked(postgres);
             deleteLegacyAclFixture(postgres, legacyAclIds);
             assertThat(countRows(postgres, "knowledge_base")).isZero();
             assertAuthorizedRetrievalUsesCurrentRelationalAcl(postgres);
         }
+    }
+
+    private void assertSeededAdministratorIsLocked(
+        PostgreSQLContainer<?> postgres
+    ) {
+        assertThat(jdbc(postgres).queryForObject(
+            "SELECT password_hash FROM sys_user WHERE username = 'admin'",
+            String.class
+        )).isEqualTo("!BOOTSTRAP_ADMIN_PASSWORD_REQUIRED!");
     }
 
     private long[] seedLegacyGlobalAdminAcl(PostgreSQLContainer<?> postgres) {

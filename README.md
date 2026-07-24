@@ -1,5 +1,7 @@
 # FundRAG
 
+云端部署请参阅 [docs/deployment.md](docs/deployment.md)。
+
 基于RAG的私募基金智能问答平台。
 
 ## 技术栈

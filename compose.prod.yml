@@ -1,0 +1,214 @@
+name: fundrag
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg17
+    restart: unless-stopped
+    mem_limit: 1536m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?请在 .env.prod 中设置 POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?请在 .env.prod 中设置 POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env.prod 中设置 POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 512mb
+    networks:
+      - app
+
+  kafka-permissions:
+    image: apache/kafka:3.9.2
+    restart: "no"
+    mem_limit: 128m
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - chown -R 1000:1000 /tmp/kraft-combined-logs
+    network_mode: none
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+
+  kafka:
+    image: apache/kafka:3.9.2
+    restart: unless-stopped
+    mem_limit: 1280m
+    depends_on:
+      kafka-permissions:
+        condition: service_completed_successfully
+    environment:
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:?请在 .env.prod 中设置 KAFKA_CLUSTER_ID}
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx768m"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks:
+      - app
+
+  kafka-init:
+    image: apache/kafka:3.9.2
+    restart: "no"
+    mem_limit: 512m
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create --if-not-exists \
+          --topic document-parse \
+          --partitions 3 \
+          --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create --if-not-exists \
+          --topic document-parse.DLT \
+          --partitions 3 \
+          --replication-factor 1
+    networks:
+      - app
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    mem_limit: 768m
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?请在 .env.prod 中设置 MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?请在 .env.prod 中设置 MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://localhost:9000/minio/health/live >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app
+
+  backend:
+    build:
+      context: .
+      dockerfile: smrag-core/Dockerfile
+    image: fundrag-backend:local
+    restart: unless-stopped
+    mem_limit: 2560m
+    init: true
+    env_file:
+      - .env.prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env.prod 中设置 POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SMRAG_STORAGE_MINIO_ENDPOINT: http://minio:9000
+      SMRAG_STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SMRAG_STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?请在 .env.prod 中设置 MINIO_ROOT_PASSWORD}
+      SMRAG_STORAGE_MINIO_BUCKET_NAME: ${SMRAG_STORAGE_MINIO_BUCKET_NAME:-fundrag-document}
+      SMRAG_SECURITY_JWT_SECRET_KEY: ${SMRAG_SECURITY_JWT_SECRET_KEY:?请在 .env.prod 中设置 SMRAG_SECURITY_JWT_SECRET_KEY}
+      SMRAG_BOOTSTRAP_ADMIN_USERNAME: ${SMRAG_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      SMRAG_BOOTSTRAP_ADMIN_PASSWORD: ${SMRAG_BOOTSTRAP_ADMIN_PASSWORD:?请在 .env.prod 中设置 SMRAG_BOOTSTRAP_ADMIN_PASSWORD}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?请在 .env.prod 中设置 DASHSCOPE_API_KEY}
+      JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError}
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://localhost:8080/actuator/health
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      - app
+
+  frontend:
+    build:
+      context: ./smrag-web
+      dockerfile: Dockerfile
+    image: fundrag-frontend:local
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DOMAIN: ${DOMAIN:?请在 .env.prod 中设置 DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1:2019/config/
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app
+
+volumes:
+  postgres_data:
+  kafka_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app:
+    driver: bridge

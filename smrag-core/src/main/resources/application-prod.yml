@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        api-key: ${DASHSCOPE_API_KEY}
+      embedding:
+        api-key: ${DASHSCOPE_API_KEY}
+
+smrag:
+  storage:
+    minio:
+      endpoint: ${SMRAG_STORAGE_MINIO_ENDPOINT}
+      access-key: ${SMRAG_STORAGE_MINIO_ACCESS_KEY}
+      secret-key: ${SMRAG_STORAGE_MINIO_SECRET_KEY}
+      bucket-name: ${SMRAG_STORAGE_MINIO_BUCKET_NAME:fundrag-document}
+  security:
+    jwt:
+      secret-key: ${SMRAG_SECURITY_JWT_SECRET_KEY}
+    bootstrap-admin:
+      username: ${SMRAG_BOOTSTRAP_ADMIN_USERNAME:admin}
+      password: ${SMRAG_BOOTSTRAP_ADMIN_PASSWORD}
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+logging:
+  level:
+    root: INFO
+    com.hqc.smrag: INFO
+    org.mybatis: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
