@@ -7,7 +7,7 @@
     @pointerleave="handlePointerLeave"
   >
     <LoginScene
-      :lens-active="lensActive"
+      :lens-active="lensActive && !lensBlocked"
       :username="form.username"
       :password="form.password"
       :show-password="showPassword"
@@ -17,6 +17,7 @@
       @update:password="form.password = $event"
       @toggle-password="showPassword = !showPassword"
       @focus-field="activeField = $event"
+      @lens-blocked="lensBlocked = $event"
       @submit="handleLogin"
     />
   </div>
@@ -42,6 +43,7 @@ const authStore = useAuthStore()
 
 const loginPage = ref(null)
 const lensActive = ref(false)
+const lensBlocked = ref(false)
 const loading = ref(false)
 const showPassword = ref(false)
 const activeField = ref('')
@@ -78,6 +80,7 @@ const handlePointerMove = event => {
 
 const handlePointerLeave = event => {
   if (!isMousePointer(event)) return
+  lensBlocked.value = false
   lensController?.leave()
 }
 
@@ -85,6 +88,7 @@ const disablePointerLens = () => {
   lensController?.destroy()
   lensController = null
   lensActive.value = false
+  lensBlocked.value = false
 }
 
 const updateLensAvailability = () => {

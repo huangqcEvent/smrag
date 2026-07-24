@@ -24,14 +24,45 @@ const indexSource = readFileSync(
   'utf8'
 )
 
-test('defines Chinese form copy and English hero reveal copy', () => {
+test('defines one hero copy and a separate English background signature', () => {
   assert.equal(LOGIN_COPY.zh.brand, 'FundRAG')
   assert.equal(LOGIN_COPY.zh.title, '你好，我是 FundRAG')
-  assert.equal(LOGIN_COPY.zh.pattern, 'FundRAG')
   assert.equal(LOGIN_COPY.zh.supporting, '可溯源的基金知识助手')
   assert.equal(LOGIN_COPY.zh.submit, '进入系统')
-  assert.equal(LOGIN_COPY.en.title, "HELLO, I'M FUNDRAG")
-  assert.equal(LOGIN_COPY.en.pattern, 'FUNDRAG')
+  assert.deepEqual(Object.keys(LOGIN_COPY.en), ['pattern'])
+})
+
+test('cycles the personal signature through Chinese and English background cells', () => {
+  assert.deepEqual(LOGIN_COPY.zh.pattern, [
+    'HQC',
+    'AI + 全栈开发工程师',
+    '2 年全栈经验'
+  ])
+  assert.deepEqual(LOGIN_COPY.en.pattern, [
+    'HQC',
+    'AI + FULL-STACK ENGINEER',
+    '2 YEARS FULL-STACK EXPERIENCE'
+  ])
+  assert.match(sceneSource, /copy\.pattern\[item % copy\.pattern\.length\]/)
+  assert.match(sceneSource, /englishCopy\.pattern\[item % englishCopy\.pattern\.length\]/)
+  assert.match(
+    sceneSource,
+    /\.login-hero-reveal\s*\{[\s\S]*--scene-pattern:\s*oklch\(0\.9 0\.006 165 \/ 0\.72\)/
+  )
+  assert.match(sceneSource, /\.scene-pattern\s*\{[\s\S]*letter-spacing:\s*0\.14em/)
+  assert.match(sceneSource, /\.scene-pattern span\s*\{[\s\S]*max-width:\s*12\.5rem/)
+  assert.doesNotMatch(sceneSource, /scene-profile/)
+})
+
+test('suppresses the pointer lens while the mouse is over the login form', () => {
+  assert.match(sceneSource, /@pointerenter="handleLensBlock\(\$event, true\)"/)
+  assert.match(sceneSource, /@pointerleave="handleLensBlock\(\$event, false\)"/)
+  assert.match(sceneSource, /isMousePointer/)
+  assert.match(sceneSource, /'lens-blocked'/)
+  assert.match(loginSource, /const lensBlocked = ref\(false\)/)
+  assert.match(loginSource, /:lens-active="lensActive && !lensBlocked"/)
+  assert.match(loginSource, /@lens-blocked="lensBlocked = \$event"/)
+  assert.match(loginSource, /lensBlocked\.value = false/)
 })
 
 test('exposes one real login form event boundary', () => {
@@ -56,11 +87,20 @@ test('renders one scene with a hero-only pointer reveal', () => {
   assert.match(loginSource, /pointerenter|pointermove|pointerleave/)
   assert.match(loginSource, /pointerLens|matchMedia/)
   assert.match(sceneSource, /class="login-hero-reveal"/)
-  assert.match(loginSource, /:lens-active="lensActive"/)
+  assert.match(loginSource, /:lens-active="lensActive && !lensBlocked"/)
   assert.match(sceneSource, /'is-active': lensActive/)
   assert.match(sceneSource, /\.login-hero-reveal\.is-active/)
   assert.doesNotMatch(sceneSource, /:global\(\.has-pointer-lens/)
-  assert.match(sceneSource, /login-hero-reveal[\s\S]*englishCopy\.title/)
+  assert.equal((sceneSource.match(/\{\{ copy\.eyebrow \}\}/g) || []).length, 2)
+  assert.equal((sceneSource.match(/\{\{ copy\.title \}\}/g) || []).length, 2)
+  assert.equal((sceneSource.match(/\{\{ copy\.supporting \}\}/g) || []).length, 2)
+  assert.doesNotMatch(sceneSource, /englishCopy\.(eyebrow|title|supporting)/)
+  assert.match(sceneSource, /\.scene-hero\s*\{[\s\S]*isolation:\s*isolate/)
+  assert.match(
+    sceneSource,
+    /\.scene-hero::before\s*\{[\s\S]*background:\s*var\(--scene-bg\)/
+  )
+  assert.match(sceneSource, /\.scene-hero::before\s*\{[\s\S]*box-shadow:/)
   assert.match(
     sceneSource,
     /class="login-hero-reveal"[\s\S]*<\/section>\s*<\/div>\s*<form/

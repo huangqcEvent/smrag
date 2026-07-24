@@ -1,6 +1,10 @@
 export const LOGIN_COPY = Object.freeze({
   zh: Object.freeze({
-    pattern: 'FundRAG',
+    pattern: Object.freeze([
+      'HQC',
+      'AI + 全栈开发工程师',
+      '2 年全栈经验'
+    ]),
     brand: 'FundRAG',
     eyebrow: '基金知识与研究工作台',
     title: '你好，我是 FundRAG',
@@ -19,9 +23,10 @@ export const LOGIN_COPY = Object.freeze({
     footer: '受权限保护的企业知识空间'
   }),
   en: Object.freeze({
-    pattern: 'FUNDRAG',
-    eyebrow: 'FUND KNOWLEDGE WORKSPACE',
-    title: "HELLO, I'M FUNDRAG",
-    supporting: 'TRUSTED ANSWERS, GROUNDED IN YOUR KNOWLEDGE.'
+    pattern: Object.freeze([
+      'HQC',
+      'AI + FULL-STACK ENGINEER',
+      '2 YEARS FULL-STACK EXPERIENCE'
+    ])
   })
 })

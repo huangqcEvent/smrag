@@ -1,7 +1,9 @@
 <template>
   <div class="login-scene">
     <div class="scene-pattern" aria-hidden="true">
-      <span v-for="item in patternItems" :key="item">{{ copy.pattern }}</span>
+      <span v-for="item in patternItems" :key="item">
+        {{ copy.pattern[item % copy.pattern.length] }}
+      </span>
     </div>
 
     <section class="scene-hero">
@@ -18,18 +20,20 @@
     >
       <div class="scene-pattern">
         <span v-for="item in patternItems" :key="`reveal-${item}`">
-          {{ englishCopy.pattern }}
+          {{ englishCopy.pattern[item % englishCopy.pattern.length] }}
         </span>
       </div>
       <section class="scene-hero">
-        <p class="hero-eyebrow">{{ englishCopy.eyebrow }}</p>
-        <h1>{{ englishCopy.title }}</h1>
-        <p class="hero-supporting">{{ englishCopy.supporting }}</p>
+        <p class="hero-eyebrow">{{ copy.eyebrow }}</p>
+        <h1>{{ copy.title }}</h1>
+        <p class="hero-supporting">{{ copy.supporting }}</p>
       </section>
     </div>
 
     <form
       class="login-panel"
+      @pointerenter="handleLensBlock($event, true)"
+      @pointerleave="handleLensBlock($event, false)"
       @submit.prevent="emit('submit')"
     >
       <div class="panel-heading">
@@ -125,6 +129,7 @@
 
 <script setup>
 import { LOGIN_COPY } from '@/constants/loginCopy'
+import { isMousePointer } from '@/utils/pointerLens'
 
 defineProps({
   lensActive: {
@@ -158,12 +163,17 @@ const emit = defineEmits([
   'update:password',
   'toggle-password',
   'focus-field',
+  'lens-blocked',
   'submit'
 ])
 
 const copy = LOGIN_COPY.zh
 const englishCopy = LOGIN_COPY.en
 const patternItems = Array.from({ length: 30 }, (_, index) => index)
+
+const handleLensBlock = (event, blocked) => {
+  if (isMousePointer(event)) emit('lens-blocked', blocked)
+}
 </script>
 
 <style scoped>
@@ -188,7 +198,7 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   --scene-bg: oklch(0.13 0.008 170);
   --scene-text: oklch(0.965 0.008 165);
   --scene-muted: oklch(0.72 0.014 165);
-  --scene-pattern: oklch(0.29 0.015 170 / 0.72);
+  --scene-pattern: oklch(0.9 0.006 165 / 0.72);
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -216,8 +226,14 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   color: var(--scene-pattern);
   font-size: 1rem;
   font-weight: 760;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.14em;
   user-select: none;
+}
+
+.scene-pattern span {
+  max-width: 12.5rem;
+  text-align: center;
+  line-height: 1.35;
 }
 
 .scene-hero {
@@ -227,6 +243,18 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   z-index: 1;
   width: min(56rem, 67vw);
   transform: translateY(-50%);
+  isolation: isolate;
+}
+
+.scene-hero::before {
+  content: '';
+  position: absolute;
+  inset: -2.5rem -3rem;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--scene-bg);
+  box-shadow: 0 0 2.5rem 2.5rem var(--scene-bg);
+  pointer-events: none;
 }
 
 .hero-eyebrow,
@@ -249,10 +277,6 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   white-space: nowrap;
 }
 
-.login-hero-reveal .scene-hero h1 {
-  letter-spacing: -0.055em;
-}
-
 .hero-supporting {
   max-width: 34rem;
   margin: 0;
@@ -260,12 +284,6 @@ const patternItems = Array.from({ length: 30 }, (_, index) => index)
   font-size: 1rem;
   font-weight: 540;
   letter-spacing: 0.02em;
-}
-
-.login-hero-reveal .hero-supporting {
-  font-size: 0.82rem;
-  font-weight: 680;
-  letter-spacing: 0.12em;
 }
 
 .login-panel {
