@@ -17,7 +17,13 @@ class RoutePromptContractTest {
         ).getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(prompt)
-            .contains("GENERAL_CHAT")
-            .contains("private", "uploaded", "general");
+            .contains("""
+                - KNOWLEDGE_QA: requests that require private policies, uploaded documents,
+                  selected knowledge bases, or other internal evidence.
+                """)
+            .contains("""
+                - GENERAL_CHAT: general explanations, writing, brainstorming, or conversation
+                  that can be answered without private knowledge or business tools.
+                """);
     }
 }

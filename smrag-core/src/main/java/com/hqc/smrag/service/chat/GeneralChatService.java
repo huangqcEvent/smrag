@@ -54,6 +54,8 @@ public class GeneralChatService {
                 .user(question)
                 .call()
                 .content();
+        } catch (AiServiceException failure) {
+            throw failure;
         } catch (RuntimeException failure) {
             throw new AiServiceException("General chat AI request failed", failure);
         }

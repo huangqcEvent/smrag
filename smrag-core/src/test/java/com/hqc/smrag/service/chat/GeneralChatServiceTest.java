@@ -103,4 +103,30 @@ class GeneralChatServiceTest {
             })
             .verify();
     }
+
+    @Test
+    void preservesExistingAiServiceExceptionForSyncFailures() {
+        ChatClient chatClient = mock(ChatClient.class);
+        ChatClient.ChatClientRequestSpec requestSpec =
+            mock(ChatClient.ChatClientRequestSpec.class);
+        ChatClient.CallResponseSpec callSpec = mock(ChatClient.CallResponseSpec.class);
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.system(any(String.class))).thenReturn(requestSpec);
+        when(requestSpec.messages(any(List.class))).thenReturn(requestSpec);
+        when(requestSpec.user("Question")).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(callSpec);
+        AiServiceException expected = new AiServiceException(
+            "provider unavailable",
+            new IllegalStateException("upstream failure")
+        );
+        when(callSpec.content()).thenThrow(expected);
+        GeneralChatService service = new GeneralChatService(
+            chatClient,
+            mock(ChatMemory.class)
+        );
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> service.answer("Question", "7:s1")
+        ).isSameAs(expected);
+    }
 }

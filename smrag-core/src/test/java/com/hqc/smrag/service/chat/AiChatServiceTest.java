@@ -150,29 +150,34 @@ class AiChatServiceTest {
         verify(fixture.persistence).save(saved.capture());
         assertThat(saved.getValue().getAnswer()).isEqualTo("通识回答");
         assertThat(saved.getValue().getRouteType()).isEqualTo("GENERAL_CHAT");
+        verify(fixture.knowledge, never()).stream(
+            any(), any(), any(), any(), any()
+        );
+        verify(fixture.business, never()).stream(any(), any(), any());
+        verify(fixture.sales, never()).stream(any(), any(), any());
     }
 
     @Test
-    void scopesTheSameClientSessionIdByAuthenticatedUser() {
+    void scopesGeneralChatWithTheSameClientSessionIdByAuthenticatedUser() {
         Fixture fixture = new Fixture();
         ChatRequestDTO first = request();
         ChatRequestDTO second = request();
         second.setUserId(8L);
         when(fixture.query.rewrite("原问题", "7:s1")).thenReturn("用户七的问题");
         when(fixture.query.rewrite("原问题", "8:s1")).thenReturn("用户八的问题");
-        when(fixture.router.route(any())).thenReturn(RouteType.PRODUCT_QUERY);
-        when(fixture.business.answer(
-            RouteType.PRODUCT_QUERY, "用户七的问题", "7:s1"
-        )).thenReturn("用户七的回答");
-        when(fixture.business.answer(
-            RouteType.PRODUCT_QUERY, "用户八的问题", "8:s1"
-        )).thenReturn("用户八的回答");
+        when(fixture.router.route(any())).thenReturn(RouteType.GENERAL_CHAT);
+        when(fixture.general.answer("用户七的问题", "7:s1"))
+            .thenReturn("用户七的回答");
+        when(fixture.general.answer("用户八的问题", "8:s1"))
+            .thenReturn("用户八的回答");
 
         assertThat(fixture.service.ask(first).getAnswer()).isEqualTo("用户七的回答");
         assertThat(fixture.service.ask(second).getAnswer()).isEqualTo("用户八的回答");
 
         verify(fixture.query).rewrite("原问题", "7:s1");
         verify(fixture.query).rewrite("原问题", "8:s1");
+        verify(fixture.general).answer("用户七的问题", "7:s1");
+        verify(fixture.general).answer("用户八的问题", "8:s1");
     }
 
     @Test

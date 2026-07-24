@@ -406,7 +406,7 @@ git commit -m "feat: 接入开放问答聊天分支（任务 3/4）"
 - 检查：`docs/superpowers/specs/2026-07-24-general-chat-route-design.md`
 - 检查：本计划列出的所有生产和测试文件
 
-- [ ] **步骤 1：运行聊天模块定向回归**
+- [x] **步骤 1：运行聊天模块定向回归**
 
 运行：
 
@@ -416,7 +416,7 @@ mvn -pl smrag-core -Dtest=RouteServiceTest,RoutePromptContractTest,GeneralChatSe
 
 预期：全部测试通过，失败数为 0。
 
-- [ ] **步骤 2：运行完整核心模块测试**
+- [x] **步骤 2：运行完整核心模块测试**
 
 运行：
 
@@ -426,7 +426,7 @@ mvn -pl smrag-core test
 
 预期：Maven `BUILD SUCCESS`，测试失败数和错误数均为 0。
 
-- [ ] **步骤 3：检查差异和路由覆盖**
+- [x] **步骤 3：检查差异和路由覆盖**
 
 运行：
 
@@ -437,7 +437,7 @@ rg -n "GENERAL_CHAT" smrag-core/src/main smrag-core/src/test
 
 预期：`git diff --check` 无错误；枚举、提示词、同步分发、流式分发、阶段映射和测试均包含 `GENERAL_CHAT`。
 
-- [ ] **步骤 4：逐项核对规格**
+- [x] **步骤 4：逐项核对规格**
 
 确认：
 
@@ -447,11 +447,11 @@ rg -n "GENERAL_CHAT" smrag-core/src/main smrag-core/src/test
 - 同步和流式成功后才使用现有持久化服务保存会话。
 - API、DTO、数据库和前端无需修改。
 
-- [ ] **步骤 5：请求代码审查**
+- [x] **步骤 5：请求代码审查**
 
 以设计提交 `3ef3e50` 为基线，审查本计划实现的所有差异；立即修复 Critical 和 Important 问题，并重新运行受影响测试。
 
-- [ ] **步骤 6：提交验证修正**
+- [x] **步骤 6：提交验证修正**
 
 如果代码审查产生修正：
 
@@ -461,3 +461,6 @@ git commit -m "fix: 完善开放问答路由实现"
 ```
 
 若无修正则不创建空提交。
+
+审查结果：无 Critical 或 Important 问题。已补齐同步异常一致性、
+路由提示词边界、开放问答会话隔离和流式依赖隔离测试。
