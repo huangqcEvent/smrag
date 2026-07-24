@@ -27,6 +27,7 @@ export const LOGIN_COPY = Object.freeze({
       'HQC',
       'AI + FULL-STACK ENGINEER',
       '2 YEARS FULL-STACK EXPERIENCE'
-    ])
+    ]),
+    title: "HELLO, I'M FUNDRAG"
   })
 })

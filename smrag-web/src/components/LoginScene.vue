@@ -25,7 +25,7 @@
       </div>
       <section class="scene-hero">
         <p class="hero-eyebrow">{{ copy.eyebrow }}</p>
-        <h1>{{ copy.title }}</h1>
+        <h1>{{ englishCopy.title }}</h1>
         <p class="hero-supporting">{{ copy.supporting }}</p>
       </section>
     </div>

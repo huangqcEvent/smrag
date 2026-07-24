@@ -24,12 +24,13 @@ const indexSource = readFileSync(
   'utf8'
 )
 
-test('defines one hero copy and a separate English background signature', () => {
+test('defines a Chinese hero with an English lens title and background signature', () => {
   assert.equal(LOGIN_COPY.zh.brand, 'FundRAG')
   assert.equal(LOGIN_COPY.zh.title, '你好，我是 FundRAG')
   assert.equal(LOGIN_COPY.zh.supporting, '可溯源的基金知识助手')
   assert.equal(LOGIN_COPY.zh.submit, '进入系统')
-  assert.deepEqual(Object.keys(LOGIN_COPY.en), ['pattern'])
+  assert.equal(LOGIN_COPY.en.title, "HELLO, I'M FUNDRAG")
+  assert.deepEqual(Object.keys(LOGIN_COPY.en), ['pattern', 'title'])
 })
 
 test('cycles the personal signature through Chinese and English background cells', () => {
@@ -92,9 +93,10 @@ test('renders one scene with a hero-only pointer reveal', () => {
   assert.match(sceneSource, /\.login-hero-reveal\.is-active/)
   assert.doesNotMatch(sceneSource, /:global\(\.has-pointer-lens/)
   assert.equal((sceneSource.match(/\{\{ copy\.eyebrow \}\}/g) || []).length, 2)
-  assert.equal((sceneSource.match(/\{\{ copy\.title \}\}/g) || []).length, 2)
+  assert.equal((sceneSource.match(/\{\{ copy\.title \}\}/g) || []).length, 1)
+  assert.match(sceneSource, /login-hero-reveal[\s\S]*englishCopy\.title/)
   assert.equal((sceneSource.match(/\{\{ copy\.supporting \}\}/g) || []).length, 2)
-  assert.doesNotMatch(sceneSource, /englishCopy\.(eyebrow|title|supporting)/)
+  assert.doesNotMatch(sceneSource, /englishCopy\.(eyebrow|supporting)/)
   assert.match(sceneSource, /\.scene-hero\s*\{[\s\S]*isolation:\s*isolate/)
   assert.match(
     sceneSource,
