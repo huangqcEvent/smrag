@@ -23,6 +23,18 @@ class RouteServiceTest {
     }
 
     @Test
+    void preservesStructuredGeneralChatRoute() {
+        when(decisionClient.decide("解释一下什么是复利"))
+            .thenReturn(new RouteDecision(
+                RouteType.GENERAL_CHAT,
+                "general explanation"
+            ));
+
+        assertThat(routeService.route("解释一下什么是复利"))
+            .isEqualTo(RouteType.GENERAL_CHAT);
+    }
+
+    @Test
     void fallsBackToKnowledgeQaForNullDecision() {
         when(decisionClient.decide("Question")).thenReturn(null);
 

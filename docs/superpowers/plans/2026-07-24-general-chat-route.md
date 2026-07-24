@@ -49,7 +49,7 @@
 - 修改：`smrag-core/src/main/java/com/hqc/smrag/enums/RouteType.java`
 - 修改：`smrag-core/src/main/resources/prompts/structured_route_prompt.txt`
 
-- [ ] **步骤 1：编写失败的结构化路由测试**
+- [x] **步骤 1：编写失败的结构化路由测试**
 
 在 `RouteServiceTest` 增加：
 
@@ -79,7 +79,7 @@ void separatesPrivateKnowledgeFromGeneralQuestions() throws IOException {
 }
 ```
 
-- [ ] **步骤 2：运行测试并确认红灯**
+- [x] **步骤 2：运行测试并确认红灯**
 
 运行：
 
@@ -89,7 +89,7 @@ mvn -pl smrag-core -Dtest=RouteServiceTest,RoutePromptContractTest test
 
 预期：编译失败，指出 `RouteType.GENERAL_CHAT` 不存在；这是功能缺失导致的预期红灯。
 
-- [ ] **步骤 3：添加最小路由实现**
+- [x] **步骤 3：添加最小路由实现**
 
 在 `RouteType` 增加：
 
@@ -107,8 +107,11 @@ GENERAL_CHAT("开放问答")
 ```
 
 保留 `RouteDecision` 和 `RouteService` 的 `KNOWLEDGE_QA` 默认值。
+由于 Java 枚举 switch 必须穷尽所有值，先在 `AiChatService` 的同步和流式
+switch 中为 `GENERAL_CHAT` 增加显式未实现保护，并将其阶段标记为
+`GENERATING`；任务 3 的行为测试负责将保护替换为真实服务分发。
 
-- [ ] **步骤 4：运行路由测试并确认绿灯**
+- [x] **步骤 4：运行路由测试并确认绿灯**
 
 运行：
 
@@ -118,11 +121,11 @@ mvn -pl smrag-core -Dtest=RouteServiceTest,RoutePromptContractTest test
 
 预期：两个测试类全部通过。
 
-- [ ] **步骤 5：提交路由契约**
+- [x] **步骤 5：提交路由契约**
 
 ```powershell
-git add smrag-core/src/main/java/com/hqc/smrag/enums/RouteType.java smrag-core/src/main/resources/prompts/structured_route_prompt.txt smrag-core/src/test/java/com/hqc/smrag/service/chat/RouteServiceTest.java smrag-core/src/test/java/com/hqc/smrag/service/chat/RoutePromptContractTest.java
-git commit -m "feat: 添加开放问答路由类型"
+git add docs/superpowers/plans/2026-07-24-general-chat-route.md smrag-core/src/main/java/com/hqc/smrag/enums/RouteType.java smrag-core/src/main/java/com/hqc/smrag/service/chat/AiChatService.java smrag-core/src/main/resources/prompts/structured_route_prompt.txt smrag-core/src/test/java/com/hqc/smrag/service/chat/RouteServiceTest.java smrag-core/src/test/java/com/hqc/smrag/service/chat/RoutePromptContractTest.java
+git commit -m "feat: 添加开放问答路由类型（任务 1/4）"
 ```
 
 ### 任务 2：实现无工具的开放问答服务

@@ -7,6 +7,9 @@ Allowed routeType values:
 - PRODUCT_RECOMMEND: products matching risk and investment constraints.
 - MANAGER_QUERY: information about a fund manager.
 - SALES_SCRIPT: a sales conversation script.
-- KNOWLEDGE_QA: policies, rules, uploaded documents, or anything not covered above.
+- KNOWLEDGE_QA: requests that require private policies, uploaded documents,
+  selected knowledge bases, or other internal evidence.
+- GENERAL_CHAT: general explanations, writing, brainstorming, or conversation
+  that can be answered without private knowledge or business tools.
 
 Never answer the user's question. Only classify it.

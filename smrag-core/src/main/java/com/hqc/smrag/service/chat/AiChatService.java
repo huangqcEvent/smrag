@@ -267,6 +267,9 @@ public class AiChatService {
                 salesScriptService.generate(question, null, sessionId),
                 List.of()
             );
+            case GENERAL_CHAT -> throw new IllegalStateException(
+                "General chat route is not implemented"
+            );
         };
     }
 
@@ -339,6 +342,9 @@ public class AiChatService {
                 ),
                 accumulator
             );
+            case GENERAL_CHAT -> Flux.error(new IllegalStateException(
+                "General chat route is not implemented"
+            ));
         };
     }
 
@@ -489,7 +495,7 @@ public class AiChatService {
             case KNOWLEDGE_QA -> "RETRIEVING";
             case PRODUCT_QUERY, PRODUCT_COMPARE, PRODUCT_RECOMMEND, MANAGER_QUERY ->
                 "CALLING_TOOL";
-            case SALES_SCRIPT -> "GENERATING";
+            case SALES_SCRIPT, GENERAL_CHAT -> "GENERATING";
         };
     }
 
