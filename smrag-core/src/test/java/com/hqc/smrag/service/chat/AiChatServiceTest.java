@@ -9,6 +9,7 @@ import com.hqc.smrag.dto.CitationDTO;
 import com.hqc.smrag.entity.ChatSession;
 import com.hqc.smrag.enums.RouteType;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -49,6 +50,30 @@ class AiChatServiceTest {
     }
 
     @Test
+    void answersGeneralQuestionWithoutKnowledgeOrBusinessServices() {
+        Fixture fixture = new Fixture();
+        ChatRequestDTO request = request();
+        when(fixture.query.rewrite(request.getQuestion(), "7:s1"))
+            .thenReturn("解释复利");
+        when(fixture.router.route("解释复利")).thenReturn(RouteType.GENERAL_CHAT);
+        when(fixture.general.answer("解释复利", "7:s1")).thenReturn("通识回答");
+
+        ChatResponseDTO response = fixture.service.ask(request);
+
+        assertThat(response.getRouteType()).isEqualTo("GENERAL_CHAT");
+        assertThat(response.getAnswer()).isEqualTo("通识回答");
+        assertThat(response.getCitations()).isEmpty();
+        assertThat(response.getReferences()).isEmpty();
+        verify(fixture.general).answer("解释复利", "7:s1");
+        verify(fixture.knowledge, never()).answer(
+            any(), any(), any(), any(), any()
+        );
+        verify(fixture.business, never()).answer(any(), any(), any());
+        verify(fixture.sales, never()).generate(any(), any(), any());
+        verify(fixture.persistence).save(any(ChatSession.class));
+    }
+
+    @Test
     void rejectsAnEmptyKnowledgeBaseScopeBeforeCallingAi() {
         Fixture fixture = new Fixture();
         ChatRequestDTO request = request();
@@ -83,6 +108,48 @@ class AiChatServiceTest {
             })
             .verifyComplete();
         verify(fixture.persistence).save(any(ChatSession.class));
+    }
+
+    @Test
+    void streamsGeneralAnswerWithoutCitationEvent() {
+        Fixture fixture = new Fixture();
+        ChatRequestDTO request = request();
+        when(fixture.query.rewrite(request.getQuestion(), "7:s1"))
+            .thenReturn("解释复利");
+        when(fixture.router.route("解释复利")).thenReturn(RouteType.GENERAL_CHAT);
+        when(fixture.general.stream("解释复利", "7:s1"))
+            .thenReturn(Flux.just("通识", "回答"));
+
+        StepVerifier.create(fixture.service.stream(request))
+            .recordWith(java.util.ArrayList::new)
+            .thenConsumeWhile(event -> true)
+            .consumeRecordedWith(events -> {
+                assertThat(events).extracting(ChatStreamEvent::type)
+                    .containsExactly(
+                        "status",
+                        "metadata",
+                        "status",
+                        "delta",
+                        "delta",
+                        "done"
+                    )
+                    .doesNotContain("citations");
+                assertThat(events.stream()
+                    .filter(event -> "status".equals(event.type()))
+                    .map(ChatStreamEvent::phase))
+                    .containsExactly("ANALYZING", "GENERATING");
+                assertThat(events.stream()
+                    .filter(event -> "metadata".equals(event.type()))
+                    .map(ChatStreamEvent::routeType))
+                    .containsExactly("GENERAL_CHAT");
+            })
+            .verifyComplete();
+
+        ArgumentCaptor<ChatSession> saved =
+            ArgumentCaptor.forClass(ChatSession.class);
+        verify(fixture.persistence).save(saved.capture());
+        assertThat(saved.getValue().getAnswer()).isEqualTo("通识回答");
+        assertThat(saved.getValue().getRouteType()).isEqualTo("GENERAL_CHAT");
     }
 
     @Test
@@ -156,6 +223,8 @@ class AiChatServiceTest {
         private final RouteService router = mock(RouteService.class);
         private final KnowledgeQaService knowledge =
             mock(KnowledgeQaService.class);
+        private final GeneralChatService general =
+            mock(GeneralChatService.class);
         private final BusinessToolChatService business =
             mock(BusinessToolChatService.class);
         private final SalesScriptService sales = mock(SalesScriptService.class);
@@ -178,6 +247,7 @@ class AiChatServiceTest {
                     query,
                     router,
                     knowledge,
+                    general,
                     business,
                     sales,
                     persistence,
@@ -189,6 +259,7 @@ class AiChatServiceTest {
                     query,
                     router,
                     knowledge,
+                    general,
                     business,
                     sales,
                     persistence,

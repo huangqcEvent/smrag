@@ -257,7 +257,7 @@ git commit -m "feat: 添加开放问答服务（任务 2/4）"
 - 修改：`smrag-core/src/test/java/com/hqc/smrag/service/chat/AiChatServiceWiringTest.java`
 - 修改：`smrag-core/src/main/java/com/hqc/smrag/service/chat/AiChatService.java`
 
-- [ ] **步骤 1：编写失败的同步分发测试**
+- [x] **步骤 1：编写失败的同步分发测试**
 
 在测试 fixture 中增加 `GeneralChatService general` mock 并注入 `AiChatService`。新增：
 
@@ -282,7 +282,7 @@ void answersGeneralQuestionWithoutKnowledgeOrBusinessServices() {
 
 在 `AiChatServiceWiringTest` 断言注入构造器包含 `GeneralChatService.class`。
 
-- [ ] **步骤 2：运行测试并确认红灯**
+- [x] **步骤 2：运行测试并确认红灯**
 
 运行：
 
@@ -292,7 +292,7 @@ mvn -pl smrag-core -Dtest=AiChatServiceTest,AiChatServiceWiringTest test
 
 预期：编译失败或断言失败，因为 `AiChatService` 尚未接收和分发 `GeneralChatService`。
 
-- [ ] **步骤 3：实现同步最小分发**
+- [x] **步骤 3：实现同步最小分发**
 
 在 `AiChatService`：
 
@@ -311,7 +311,7 @@ case GENERAL_CHAT -> new BranchAnswer(
 
 更新兼容构造器参数及其委托调用，保持唯一 `@Autowired` 构造器。
 
-- [ ] **步骤 4：运行同步测试并确认绿灯**
+- [x] **步骤 4：运行同步测试并确认绿灯**
 
 运行：
 
@@ -321,7 +321,7 @@ mvn -pl smrag-core -Dtest=AiChatServiceTest,AiChatServiceWiringTest test
 
 预期：同步开放问答测试和构造器测试通过。
 
-- [ ] **步骤 5：编写失败的 SSE 分发测试**
+- [x] **步骤 5：编写失败的 SSE 分发测试**
 
 新增：
 
@@ -350,7 +350,7 @@ void streamsGeneralAnswerWithoutCitationEvent() {
 }
 ```
 
-- [ ] **步骤 6：运行测试并确认红灯**
+- [x] **步骤 6：运行测试并确认红灯**
 
 运行：
 
@@ -360,7 +360,7 @@ mvn -pl smrag-core -Dtest=AiChatServiceTest#streamsGeneralAnswerWithoutCitationE
 
 预期：测试失败，因为流式 switch 和阶段映射未处理 `GENERAL_CHAT`。
 
-- [ ] **步骤 7：实现流式最小分发**
+- [x] **步骤 7：实现流式最小分发**
 
 在 `streamBranch(...)` 增加：
 
@@ -382,7 +382,7 @@ case GENERAL_CHAT, SALES_SCRIPT -> "GENERATING";
 
 保持 `citationsAfterGeneration(...)` 只允许 `KNOWLEDGE_QA`。
 
-- [ ] **步骤 8：运行编排测试并确认绿灯**
+- [x] **步骤 8：运行编排测试并确认绿灯**
 
 运行：
 
@@ -392,11 +392,11 @@ mvn -pl smrag-core -Dtest=AiChatServiceTest,AiChatServiceWiringTest test
 
 预期：同步和流式开放问答、现有 RAG 分支测试全部通过。
 
-- [ ] **步骤 9：提交聊天编排**
+- [x] **步骤 9：提交聊天编排**
 
 ```powershell
 git add smrag-core/src/main/java/com/hqc/smrag/service/chat/AiChatService.java smrag-core/src/test/java/com/hqc/smrag/service/chat/AiChatServiceTest.java smrag-core/src/test/java/com/hqc/smrag/service/chat/AiChatServiceWiringTest.java
-git commit -m "feat: 接入开放问答聊天分支"
+git commit -m "feat: 接入开放问答聊天分支（任务 3/4）"
 ```
 
 ### 任务 4：回归验证与规格核对

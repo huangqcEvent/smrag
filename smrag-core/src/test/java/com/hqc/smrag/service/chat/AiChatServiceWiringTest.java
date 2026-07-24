@@ -18,6 +18,9 @@ class AiChatServiceWiringTest {
 
         assertThat(injectableConstructors).hasSize(1);
         assertThat(injectableConstructors[0].getParameterTypes())
-            .contains(com.hqc.smrag.service.DocPermissionService.class);
+            .contains(
+                com.hqc.smrag.service.DocPermissionService.class,
+                GeneralChatService.class
+            );
     }
 }

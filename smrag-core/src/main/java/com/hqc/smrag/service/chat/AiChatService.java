@@ -54,6 +54,7 @@ public class AiChatService {
     private final ConversationQueryService queryService;
     private final RouteService routeService;
     private final KnowledgeQaService knowledgeQaService;
+    private final GeneralChatService generalChatService;
     private final BusinessToolChatService businessService;
     private final SalesScriptService salesScriptService;
     private final ChatSessionPersistenceService persistenceService;
@@ -63,12 +64,13 @@ public class AiChatService {
 
     /** Compatibility constructor for callers that do not perform authenticated retrieval. */
     public AiChatService(ConversationQueryService queryService, RouteService routeService,
-                         KnowledgeQaService knowledgeService, BusinessToolChatService businessService,
+                         KnowledgeQaService knowledgeService, GeneralChatService generalChatService,
+                         BusinessToolChatService businessService,
                          SalesScriptService salesScriptService,
                          ChatSessionPersistenceService persistenceService,
                          ObjectMapper objectMapper, ChatStreamProperties streamProperties) {
-        this(queryService, routeService, knowledgeService, businessService, salesScriptService,
-            persistenceService, null, objectMapper, streamProperties);
+        this(queryService, routeService, knowledgeService, generalChatService, businessService,
+            salesScriptService, persistenceService, null, objectMapper, streamProperties);
     }
 
     /**
@@ -267,8 +269,9 @@ public class AiChatService {
                 salesScriptService.generate(question, null, sessionId),
                 List.of()
             );
-            case GENERAL_CHAT -> throw new IllegalStateException(
-                "General chat route is not implemented"
+            case GENERAL_CHAT -> new BranchAnswer(
+                generalChatService.answer(question, sessionId),
+                List.of()
             );
         };
     }
@@ -342,9 +345,13 @@ public class AiChatService {
                 ),
                 accumulator
             );
-            case GENERAL_CHAT -> Flux.error(new IllegalStateException(
-                "General chat route is not implemented"
-            ));
+            case GENERAL_CHAT -> streamText(
+                generalChatService.stream(
+                    context.rewrittenQuestion(),
+                    context.request().conversationKey()
+                ),
+                accumulator
+            );
         };
     }
 
