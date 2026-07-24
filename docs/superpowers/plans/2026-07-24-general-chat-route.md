@@ -135,7 +135,7 @@ git commit -m "feat: 添加开放问答路由类型（任务 1/4）"
 - 创建：`smrag-core/src/test/java/com/hqc/smrag/service/chat/GeneralChatServiceTest.java`
 - 创建：`smrag-core/src/main/java/com/hqc/smrag/service/chat/GeneralChatService.java`
 
-- [ ] **步骤 1：编写失败的服务测试**
+- [x] **步骤 1：编写失败的服务测试**
 
 测试期望的构造器和 API：
 
@@ -170,7 +170,7 @@ verify(requestSpec, never()).toolCallbacks(any(ToolCallback[].class));
 
 另一个测试让 `streamSpec.content()` 返回 `Flux.error(...)`，断言最终异常为 `AiServiceException`。
 
-- [ ] **步骤 2：运行测试并确认红灯**
+- [x] **步骤 2：运行测试并确认红灯**
 
 运行：
 
@@ -180,7 +180,7 @@ mvn -pl smrag-core -Dtest=GeneralChatServiceTest test
 
 预期：编译失败，指出 `GeneralChatService` 不存在。
 
-- [ ] **步骤 3：实现最小服务**
+- [x] **步骤 3：实现最小服务**
 
 新增 `@Service`：
 
@@ -232,7 +232,7 @@ public class GeneralChatService {
 
 生产构造器接收 `ChatClient.Builder` 与 `ChatMemory`，包级构造器接收 `ChatClient` 便于单元测试；`history()` 将空值规范为 `List.of()`。
 
-- [ ] **步骤 4：运行服务测试并确认绿灯**
+- [x] **步骤 4：运行服务测试并确认绿灯**
 
 运行：
 
@@ -242,11 +242,11 @@ mvn -pl smrag-core -Dtest=GeneralChatServiceTest test
 
 预期：全部通过，流式异常被包装为 `AiServiceException`。
 
-- [ ] **步骤 5：提交开放问答服务**
+- [x] **步骤 5：提交开放问答服务**
 
 ```powershell
 git add smrag-core/src/main/java/com/hqc/smrag/service/chat/GeneralChatService.java smrag-core/src/test/java/com/hqc/smrag/service/chat/GeneralChatServiceTest.java
-git commit -m "feat: 添加开放问答服务"
+git commit -m "feat: 添加开放问答服务（任务 2/4）"
 ```
 
 ### 任务 3：接入同步与流式聊天编排
