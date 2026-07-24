@@ -14,7 +14,8 @@ class RoutePromptContractTest {
     void separatesPrivateKnowledgeFromGeneralQuestions() throws IOException {
         String prompt = new ClassPathResource(
             "prompts/structured_route_prompt.txt"
-        ).getContentAsString(StandardCharsets.UTF_8);
+        ).getContentAsString(StandardCharsets.UTF_8)
+            .replace("\r\n", "\n");
 
         assertThat(prompt)
             .contains("""
