@@ -160,11 +160,25 @@
             <div>
               <strong>{{ copy.uploadSourceTitle }}</strong>
               <span v-if="selectedBase.status === 'ACTIVE'">
-                {{ copy.uploadSourceDescription }}
+                {{ `${copy.uploadSourceDescription} ${selectedChunkingStrategyDescription}` }}
               </span>
               <span v-else>{{ copy.uploadDisabledDescription }}</span>
             </div>
             <div class="upload-controls">
+              <el-select
+                v-model="uploadChunkingStrategy"
+                class="chunking-strategy-select"
+                :aria-label="copy.chunkingStrategyPlaceholder"
+                :placeholder="copy.chunkingStrategyPlaceholder"
+                :disabled="selectedBase.status !== 'ACTIVE' || uploading"
+              >
+                <el-option
+                  v-for="strategy in DOCUMENT_CHUNKING_STRATEGIES"
+                  :key="strategy.value"
+                  :label="strategy.label"
+                  :value="strategy.value"
+                />
+              </el-select>
               <el-select
                 v-model="uploadRoleCodes"
                 multiple
@@ -269,6 +283,13 @@
                   <template #default="{ row }">
                     <el-tag :type="statusType(row.status)" effect="plain">
                       {{ statusLabel(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="copy.chunkingStrategyColumn" width="130">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain">
+                      {{ chunkingStrategyLabel(row.chunkingStrategy) }}
                     </el-tag>
                   </template>
                 </el-table-column>
@@ -379,6 +400,12 @@ import { getRoles } from '@/api/role'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { filterConfigurableAccessRoles } from '@/constants/knowledgeBase'
+import {
+  DEFAULT_CHUNKING_STRATEGY,
+  DOCUMENT_CHUNKING_STRATEGIES,
+  chunkingStrategyDescription,
+  chunkingStrategyLabel
+} from '@/constants/documentChunking'
 import { notifyError } from '@/utils/errorFeedback'
 
 const copy = {
@@ -413,6 +440,7 @@ const copy = {
   uploadSourceDescription: 'PDF\u3001Word \u6216 TXT\uff0c\u89e3\u6790\u540e\u81ea\u52a8\u8fdb\u5165\u6388\u6743\u68c0\u7d22\u3002',
   uploadDisabledDescription: '\u77e5\u8bc6\u5e93\u5df2\u505c\u7528\uff0c\u542f\u7528\u540e\u624d\u80fd\u4e0a\u4f20\u3002',
   documentRolesPlaceholder: '\u6587\u6863\u89d2\u8272',
+  chunkingStrategyPlaceholder: '\u5207\u5757\u65b9\u5f0f',
   chooseFile: '\u9009\u62e9\u6587\u4ef6',
   upload: '\u4e0a\u4f20',
   contentEyebrow: '\u5185\u5bb9',
@@ -425,6 +453,7 @@ const copy = {
   documentsEmptyText: '\u8fd9\u4e2a\u77e5\u8bc6\u5e93\u8fd8\u6ca1\u6709\u6587\u6863',
   documentColumn: '\u6587\u6863',
   statusColumn: '\u72b6\u6001',
+  chunkingStrategyColumn: '\u5207\u5757\u65b9\u5f0f',
   permissionsColumn: '\u6587\u6863\u6743\u9650',
   readable: '\u53ef\u9605\u8bfb',
   notReadable: '\u65e0\u9605\u8bfb\u6743\u9650',
@@ -501,6 +530,7 @@ const documentStatus = ref(documentFilters.value.status)
 const documentsScrollPanel = ref(null)
 const selectedFile = ref(null)
 const uploadRoleCodes = ref([])
+const uploadChunkingStrategy = ref(DEFAULT_CHUNKING_STRATEGY)
 const uploading = ref(false)
 const viewerDocument = ref(null)
 const permissionDialog = ref(false)
@@ -557,6 +587,10 @@ const documentCountLabel = computed(() =>
   documentPage.value.total > 0
     ? `${documents.value.length} / ${documentPage.value.total} ${copy.documentCountSuffix}`
     : `${documents.value.length} ${copy.documentCountSuffix}`
+)
+
+const selectedChunkingStrategyDescription = computed(() =>
+  chunkingStrategyDescription(uploadChunkingStrategy.value)
 )
 
 const navigationEmptyTitle = computed(() =>
@@ -710,7 +744,8 @@ const handleUpload = async () => {
     await knowledgeStore.upload(
       selectedFile.value,
       selectedBase.value.code,
-      uploadRoleCodes.value
+      uploadRoleCodes.value,
+      uploadChunkingStrategy.value
     )
     selectedFile.value = null
     ElMessage.success(copy.uploadSuccess)
@@ -1021,6 +1056,7 @@ const statusType = status => ({
 }
 
 .upload-controls .el-select { width: 190px; }
+.upload-controls .chunking-strategy-select { width: 150px; }
 
 .documents-section {
   margin-top: 28px;
@@ -1187,6 +1223,9 @@ const statusType = status => ({
   .dialog-roles { grid-template-columns: 1fr; }
   .document-toolbar .el-input,
   .document-toolbar .el-select {
+    width: 100%;
+  }
+  .upload-controls .el-select {
     width: 100%;
   }
 }

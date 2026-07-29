@@ -151,8 +151,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await refreshDocuments(knowledgeBaseCode.value, nextFilters)
   }
 
-  const upload = async (file, code, roles) => {
-    await uploadDocument(file, code, roles)
+  const upload = async (file, code, roles, chunkingStrategy) => {
+    await uploadDocument(file, code, roles, chunkingStrategy)
     await refreshDocuments(code)
   }
 

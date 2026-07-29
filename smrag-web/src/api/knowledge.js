@@ -4,12 +4,14 @@ import request from '@/utils/request'
 export function uploadDocument(
   file,
   knowledgeBaseCode,
-  roles
+  roles,
+  chunkingStrategy
 ) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('knowledgeBaseCode', knowledgeBaseCode)
   formData.append('roles', roles.join(','))
+  formData.append('chunkingStrategy', chunkingStrategy)
   return request({
     url: '/knowledge/upload',
     method: 'post',
