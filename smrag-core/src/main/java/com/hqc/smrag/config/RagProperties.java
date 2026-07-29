@@ -2,12 +2,17 @@ package com.hqc.smrag.config;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * RAG（检索增强生成）配置属性
@@ -104,6 +109,30 @@ public class RagProperties {
      * 默认值：true。
      */
     private boolean keepSeparator = true;
+
+    @Min(1)
+    private int recursiveChunkSize = 800;
+
+    @Min(0)
+    private int recursiveChunkOverlap = 120;
+
+    private List<String> recursiveSeparators =
+        List.of("\n\n", "\n", "。", "！", "？", "；", "，", " ");
+
+    @AssertTrue(message = "递归切块配置不合法")
+    public boolean isRecursiveChunkingValid() {
+        if (recursiveChunkOverlap >= recursiveChunkSize
+            || recursiveSeparators == null
+            || recursiveSeparators.isEmpty()) {
+            return false;
+        }
+        Set<String> unique = new HashSet<>();
+        return recursiveSeparators.stream()
+            .allMatch(separator ->
+                separator != null
+                    && !separator.isEmpty()
+                    && unique.add(separator));
+    }
 
     /**
      * 最大上传文件大小（字节）

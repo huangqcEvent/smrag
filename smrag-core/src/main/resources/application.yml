@@ -98,5 +98,16 @@ smrag:
       min-chunk-length-to-embed: 20
       max-num-chunks: 5000
       keep-separator: true
+      recursive-chunk-size: 800
+      recursive-chunk-overlap: 120
+      recursive-separators:
+        - "\n\n"
+        - "\n"
+        - "。"
+        - "！"
+        - "？"
+        - "；"
+        - "，"
+        - " "
       max-upload-size-bytes: 20971520
       reindex-on-startup: false
