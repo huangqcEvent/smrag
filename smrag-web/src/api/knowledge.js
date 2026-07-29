@@ -1,11 +1,12 @@
 import request from '@/utils/request'
+import { DEFAULT_CHUNKING_STRATEGY } from '@/constants/documentChunking'
 
 // 上传知识文档
 export function uploadDocument(
   file,
   knowledgeBaseCode,
   roles,
-  chunkingStrategy
+  chunkingStrategy = DEFAULT_CHUNKING_STRATEGY
 ) {
   const formData = new FormData()
   formData.append('file', file)

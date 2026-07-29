@@ -37,6 +37,10 @@ test('token remains the default and both upload strategies are explained', () =>
 test('upload api and store forward the selected strategy', () => {
   assert.match(
     apiSource,
+    /chunkingStrategy\s*=\s*DEFAULT_CHUNKING_STRATEGY/
+  )
+  assert.match(
+    apiSource,
     /formData\.append\('chunkingStrategy',\s*chunkingStrategy\)/
   )
   assert.match(
