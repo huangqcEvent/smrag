@@ -52,6 +52,11 @@ public class DocumentVO {
     private String status;
 
     /**
+     * 文档切块策略：TOKEN 或 RECURSIVE。
+     */
+    private String chunkingStrategy;
+
+    /**
      * 分块数量
      * <p>
      * 文档被切分为多少个块进行向量化处理。

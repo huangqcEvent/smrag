@@ -159,6 +159,7 @@ public class KnowledgeController {
                 vo.setName(doc.getName());
                 vo.setFileType(doc.getFileType());
                 vo.setStatus(doc.getStatus());
+                vo.setChunkingStrategy(doc.getChunkingStrategy());
                 vo.setChunkCount(doc.getChunkCount());
                 vo.setCreateTime(doc.getCreateTime());
                 return vo;

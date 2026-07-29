@@ -69,6 +69,11 @@ public class KnowledgeDocument {
     private String status;
 
     /**
+     * 文档切块策略：TOKEN 或 RECURSIVE。
+     */
+    private String chunkingStrategy;
+
+    /**
      * 分块数量
      */
     private Integer chunkCount;

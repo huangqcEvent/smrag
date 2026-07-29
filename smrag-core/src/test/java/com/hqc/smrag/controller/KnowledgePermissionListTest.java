@@ -36,6 +36,8 @@ class KnowledgePermissionListTest {
         );
         KnowledgeDocument readable = document(1L, "readable.pdf");
         KnowledgeDocument locked = document(2L, "locked.pdf");
+        readable.setChunkingStrategy("RECURSIVE");
+        locked.setChunkingStrategy("TOKEN");
         RoleVO userRole = new RoleVO(2L, "USER", "普通用户", null);
         RoleVO auditRole = new RoleVO(3L, "AUDIT", "审计", null);
 
@@ -62,6 +64,8 @@ class KnowledgePermissionListTest {
         assertThat(result.records().get(0).getAllowedRoles()).extracting(RoleVO::roleCode)
             .containsExactly("USER");
         assertThat(result.records().get(1).isAccessible()).isFalse();
+        assertThat(result.records()).extracting(DocumentVO::getChunkingStrategy)
+            .containsExactly("RECURSIVE", "TOKEN");
         assertThat(result.records().get(1).getAllowedRoles()).extracting(RoleVO::roleName)
             .containsExactly("审计");
     }

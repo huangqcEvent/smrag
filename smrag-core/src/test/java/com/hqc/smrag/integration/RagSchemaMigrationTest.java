@@ -19,6 +19,7 @@ import java.sql.Types;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RagSchemaMigrationTest {
@@ -73,6 +74,13 @@ class RagSchemaMigrationTest {
             assertIndexExists(postgres, "idx_knowledge_base_role_role_base");
             assertIndexExists(postgres, "idx_rag_vector_store_acl");
             assertForeignKeyExists(postgres, "knowledge_document", "fk_knowledge_document_base");
+            assertVarcharCapacity(
+                postgres,
+                "knowledge_document",
+                "chunking_strategy",
+                16
+            );
+            assertChunkingStrategyConstraint(postgres, legacyAclIds[1]);
             assertLegacyGlobalAdminAclRemoved(postgres, legacyAclIds);
             assertSeededAdministratorIsLocked(postgres);
             deleteLegacyAclFixture(postgres, legacyAclIds);
@@ -88,6 +96,22 @@ class RagSchemaMigrationTest {
             "SELECT password_hash FROM sys_user WHERE username = 'admin'",
             String.class
         )).isEqualTo("!BOOTSTRAP_ADMIN_PASSWORD_REQUIRED!");
+    }
+
+    private void assertChunkingStrategyConstraint(
+        PostgreSQLContainer<?> postgres,
+        long documentId
+    ) {
+        JdbcTemplate jdbc = jdbc(postgres);
+        assertThat(jdbc.queryForObject(
+            "SELECT chunking_strategy FROM knowledge_document WHERE id = ?",
+            String.class,
+            documentId
+        )).isEqualTo("TOKEN");
+        assertThatThrownBy(() -> jdbc.update(
+            "UPDATE knowledge_document SET chunking_strategy = 'UNKNOWN' WHERE id = ?",
+            documentId
+        )).isInstanceOf(org.springframework.dao.DataAccessException.class);
     }
 
     private long[] seedLegacyGlobalAdminAcl(PostgreSQLContainer<?> postgres) {
