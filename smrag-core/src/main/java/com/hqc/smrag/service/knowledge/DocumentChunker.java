@@ -1,15 +1,18 @@
 package com.hqc.smrag.service.knowledge;
 
 import com.hqc.smrag.config.RagProperties;
+import com.hqc.smrag.enums.ChunkingStrategy;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.Set;
 
@@ -39,17 +42,33 @@ import java.util.Set;
 @Component
 public class DocumentChunker {
 
-    private final TokenTextSplitter splitter;
+    private final Map<ChunkingStrategy, DocumentSplittingStrategy> strategies;
     private final VectorDocumentIdGenerator idGenerator;
 
-    public DocumentChunker(RagProperties properties, VectorDocumentIdGenerator idGenerator) {
-        this.splitter = TokenTextSplitter.builder()
-            .withChunkSize(properties.getChunkSize())
-            .withMinChunkSizeChars(properties.getMinChunkSizeChars())
-            .withMinChunkLengthToEmbed(properties.getMinChunkLengthToEmbed())
-            .withMaxNumChunks(properties.getMaxNumChunks())
-            .withKeepSeparator(properties.isKeepSeparator())
-            .build();
+    public DocumentChunker(
+        List<DocumentSplittingStrategy> strategies,
+        VectorDocumentIdGenerator idGenerator
+    ) {
+        EnumMap<ChunkingStrategy, DocumentSplittingStrategy> registry =
+            new EnumMap<>(ChunkingStrategy.class);
+        for (DocumentSplittingStrategy strategy : strategies) {
+            Objects.requireNonNull(strategy, "chunking strategy must not be null");
+            ChunkingStrategy type = Objects.requireNonNull(
+                strategy.type(),
+                "chunking strategy type must not be null"
+            );
+            if (registry.put(type, strategy) != null) {
+                throw new IllegalStateException(
+                    "重复的文档切块策略: " + type
+                );
+            }
+        }
+        for (ChunkingStrategy type : ChunkingStrategy.values()) {
+            if (!registry.containsKey(type)) {
+                throw new IllegalStateException("缺少文档切块策略: " + type);
+            }
+        }
+        this.strategies = Map.copyOf(registry);
         this.idGenerator = idGenerator;
     }
 
@@ -85,6 +104,38 @@ public class DocumentChunker {
         Integer aclVersion,
         Set<Long> roleIds
     ) {
+        return chunk(
+            sourceDocuments,
+            ChunkingStrategy.TOKEN,
+            knowledgeBaseId,
+            documentId,
+            documentName,
+            documentType,
+            documentVersion,
+            documentStatus,
+            checksum,
+            aclVersion,
+            roleIds
+        );
+    }
+
+    public List<Document> chunk(
+        List<Document> sourceDocuments,
+        ChunkingStrategy chunkingStrategy,
+        Long knowledgeBaseId,
+        long documentId,
+        String documentName,
+        String documentType,
+        int documentVersion,
+        String documentStatus,
+        String checksum,
+        Integer aclVersion,
+        Set<Long> roleIds
+    ) {
+        Objects.requireNonNull(
+            chunkingStrategy,
+            "chunkingStrategy must not be null"
+        );
         if (aclVersion == null) {
             throw new IllegalArgumentException("ACL version must not be null");
         }
@@ -105,7 +156,8 @@ public class DocumentChunker {
                 roleIds
             ))
             .toList();
-        List<Document> splitDocuments = splitter.apply(enrichedDocuments);
+        List<Document> splitDocuments =
+            strategies.get(chunkingStrategy).split(enrichedDocuments);
         List<Document> chunks = new ArrayList<>(splitDocuments.size());
 
         for (int chunkIndex = 0; chunkIndex < splitDocuments.size(); chunkIndex++) {
