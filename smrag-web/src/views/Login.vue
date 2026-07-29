@@ -92,11 +92,10 @@ const disablePointerLens = () => {
 }
 
 const updateLensAvailability = () => {
-  const [hover, finePointer, reducedMotion] = lensMediaQueries
+  const [hover, finePointer] = lensMediaQueries
   const enabled = hover && canUsePointerLens({
     canHover: hover.matches,
-    hasFinePointer: finePointer.matches,
-    reducedMotion: reducedMotion.matches
+    hasFinePointer: finePointer.matches
   })
 
   if (!enabled) {
@@ -115,8 +114,7 @@ const updateLensAvailability = () => {
 onMounted(() => {
   lensMediaQueries = [
     window.matchMedia('(any-hover: hover)'),
-    window.matchMedia('(any-pointer: fine)'),
-    window.matchMedia('(prefers-reduced-motion: reduce)')
+    window.matchMedia('(any-pointer: fine)')
   ]
   lensMediaQueries.forEach(query => {
     query.addEventListener('change', updateLensAvailability)

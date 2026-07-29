@@ -7,7 +7,7 @@ import {
   toLocalPointerPosition
 } from '../src/utils/pointerLens.js'
 
-test('only enables the lens for a fine hover pointer without reduced motion', () => {
+test('enables the lens for a fine hover pointer regardless of reduced motion', () => {
   assert.equal(canUsePointerLens({
     canHover: true,
     hasFinePointer: true,
@@ -27,7 +27,7 @@ test('only enables the lens for a fine hover pointer without reduced motion', ()
     canHover: true,
     hasFinePointer: true,
     reducedMotion: true
-  }), false)
+  }), true)
 })
 
 test('only accepts mouse pointer events on hybrid devices', () => {

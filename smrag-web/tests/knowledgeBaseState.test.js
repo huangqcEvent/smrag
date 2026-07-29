@@ -70,9 +70,20 @@ test('clears all account-scoped knowledge values', () => {
   assert.deepEqual(state, {
     documents: [],
     loading: false,
+    loadingMoreDocuments: false,
     knowledgeBases: [],
     adminKnowledgeBases: [],
     knowledgeBaseCode: '',
+    documentFilters: {
+      keyword: '',
+      status: ''
+    },
+    documentPage: {
+      pageNum: 1,
+      pageSize: 20,
+      total: 0,
+      hasMore: false
+    },
     selectedKnowledgeBaseCodes: [],
     accountEpoch: 3,
     documentRequestEpoch: 5,

@@ -1,9 +1,8 @@
 export function canUsePointerLens({
   canHover,
-  hasFinePointer,
-  reducedMotion
+  hasFinePointer
 }) {
-  return canHover && hasFinePointer && !reducedMotion
+  return canHover && hasFinePointer
 }
 
 export function isMousePointer(event) {

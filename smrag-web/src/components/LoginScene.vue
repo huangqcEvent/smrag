@@ -605,7 +605,7 @@ button.login-submit:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .login-hero-reveal {
-    display: none;
+    transition: none;
   }
 
   .submit-loading i {
