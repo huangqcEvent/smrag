@@ -2,37 +2,50 @@
   <section class="knowledge-page">
     <header class="page-header">
       <div>
-        <h1>知识库</h1>
-        <p>按业务范围组织文档，并用现有角色控制访问。</p>
+        <h1>{{ copy.pageTitle }}</h1>
+        <p>{{ copy.pageDescription }}</p>
       </div>
       <el-button v-if="authStore.isAdmin" type="primary" @click="startCreate">
         <el-icon><Plus /></el-icon>
-        新建知识库
+        {{ copy.createBase }}
       </el-button>
     </header>
 
     <div class="workspace">
-      <aside class="base-navigation" aria-label="知识库列表">
-        <button
-          v-for="base in visibleBases"
-          :key="base.id"
-          type="button"
-          :class="['base-item', { active: base.code === knowledgeBaseCode }]"
-          @click="selectBase(base.code)"
-        >
-          <span class="base-mark">{{ base.name.slice(0, 1) }}</span>
-          <span class="base-copy">
-            <strong>{{ base.name }}</strong>
-            <small>{{ base.documentCount ?? 0 }} 份文档</small>
-          </span>
-          <span v-if="base.status === 'DISABLED'" class="disabled-label">停用</span>
-        </button>
+      <aside class="base-navigation" :aria-label="copy.baseListAriaLabel">
+        <div class="navigation-search">
+          <el-input
+            v-model="baseSearchKeyword"
+            clearable
+            :placeholder="copy.baseSearchPlaceholder"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
 
-        <div v-if="visibleBases.length === 0" class="navigation-empty">
-          <el-icon><Collection /></el-icon>
-          <strong>还没有知识库</strong>
-          <span v-if="authStore.isAdmin">创建第一个知识库后即可上传文档。</span>
-          <span v-else>请联系管理员为你的角色授权。</span>
+        <div class="base-list">
+          <button
+            v-for="base in visibleBases"
+            :key="base.id"
+            type="button"
+            :class="['base-item', { active: base.code === knowledgeBaseCode }]"
+            @click="selectBase(base.code)"
+          >
+            <span class="base-mark">{{ base.name.slice(0, 1) }}</span>
+            <span class="base-copy">
+              <strong>{{ base.name }}</strong>
+              <small>{{ `${base.documentCount ?? 0} ${copy.documentCountSuffix}` }}</small>
+            </span>
+            <span v-if="base.status === 'DISABLED'" class="disabled-label">{{ copy.disabled }}</span>
+          </button>
+
+          <div v-if="visibleBases.length === 0" class="navigation-empty">
+            <el-icon><Collection /></el-icon>
+            <strong>{{ navigationEmptyTitle }}</strong>
+            <span>{{ navigationEmptyDescription }}</span>
+          </div>
         </div>
       </aside>
 
@@ -40,24 +53,22 @@
         <section v-if="editorMode" class="base-editor" aria-labelledby="editor-title">
           <div class="section-title">
             <div>
-              <span class="eyebrow">{{ editorMode === 'create' ? '创建' : '设置' }}</span>
-              <h2 id="editor-title">
-                {{ editorMode === 'create' ? '新建知识库' : `设置 ${selectedBase?.name}` }}
-              </h2>
+              <span class="eyebrow">{{ editorMode === 'create' ? copy.createEyebrow : copy.editEyebrow }}</span>
+              <h2 id="editor-title">{{ editorTitle }}</h2>
             </div>
-            <el-button text @click="editorMode = ''">收起</el-button>
+            <el-button text @click="editorMode = ''">{{ copy.collapse }}</el-button>
           </div>
           <div class="editor-grid">
             <label>
-              <span>名称</span>
+              <span>{{ copy.baseNameLabel }}</span>
               <el-input v-model="baseForm.name" maxlength="128" />
             </label>
             <label v-if="editorMode === 'create'">
-              <span>编码，创建后不可修改</span>
+              <span>{{ copy.baseCodeLabel }}</span>
               <el-input v-model="baseForm.code" maxlength="64" placeholder="research-materials" />
             </label>
             <label class="full-row">
-              <span>说明</span>
+              <span>{{ copy.baseDescriptionLabel }}</span>
               <el-input
                 v-model="baseForm.description"
                 type="textarea"
@@ -66,21 +77,21 @@
               />
             </label>
             <fieldset class="full-row">
-              <legend>允许访问的角色</legend>
+              <legend>{{ copy.baseRolesLegend }}</legend>
               <el-checkbox-group v-model="baseForm.roleIds" class="role-options">
                 <el-checkbox
                   v-for="role in configurableRoles"
                   :key="role.id"
                   :value="role.id"
                 >
-                  {{ role.roleName }}（{{ role.roleCode }}）
+                  {{ `${role.roleName}${copy.fullWidthLeftParen}${role.roleCode}${copy.fullWidthRightParen}` }}
                 </el-checkbox>
               </el-checkbox-group>
             </fieldset>
           </div>
           <div class="editor-actions">
             <el-button type="primary" :loading="savingBase" @click="saveBase">
-              {{ editorMode === 'create' ? '创建知识库' : '保存设置' }}
+              {{ editorMode === 'create' ? copy.createBase : copy.saveSettings }}
             </el-button>
             <template v-if="editorMode === 'edit' && selectedBase">
               <el-button
@@ -88,7 +99,7 @@
                 plain
                 @click="toggleStatus"
               >
-                {{ selectedBase.status === 'ACTIVE' ? '停用知识库' : '启用知识库' }}
+                {{ selectedBase.status === 'ACTIVE' ? copy.disableBase : copy.enableBase }}
               </el-button>
               <el-button
                 type="danger"
@@ -96,10 +107,10 @@
                 :disabled="selectedBase.documentCount > 0"
                 @click="removeSelectedBase"
               >
-                删除知识库
+                {{ copy.deleteBase }}
               </el-button>
               <span v-if="selectedBase.documentCount > 0" class="delete-hint">
-                请先迁移或删除库内文档
+                {{ copy.deleteBaseHint }}
               </span>
             </template>
           </div>
@@ -110,11 +121,13 @@
             <div>
               <div class="title-line">
                 <h2>{{ selectedBase.name }}</h2>
-                <el-tag v-if="selectedBase.status === 'DISABLED'" type="warning">已停用</el-tag>
+                <el-tag v-if="selectedBase.status === 'DISABLED'" type="warning">
+                  {{ copy.disabledStatus }}
+                </el-tag>
               </div>
-              <p>{{ selectedBase.description || '暂无说明' }}</p>
+              <p>{{ selectedBase.description || copy.noDescription }}</p>
               <div class="base-roles">
-                <span>库权限</span>
+                <span>{{ copy.baseRolesTitle }}</span>
                 <el-tag
                   v-for="role in selectedBase.roles || []"
                   :key="role.id"
@@ -129,13 +142,13 @@
               <el-button
                 text
                 :loading="loading"
-                aria-label="刷新文档"
-                @click="fetchDocuments()"
+                :aria-label="copy.refreshDocuments"
+                @click="refreshDocuments"
               >
                 <el-icon><Refresh /></el-icon>
-                刷新
+                {{ copy.refresh }}
               </el-button>
-              <el-button v-if="authStore.isAdmin" @click="startEdit">知识库设置</el-button>
+              <el-button v-if="authStore.isAdmin" @click="startEdit">{{ copy.baseSettings }}</el-button>
             </div>
           </header>
 
@@ -145,18 +158,18 @@
             :class="{ disabled: selectedBase.status !== 'ACTIVE' }"
           >
             <div>
-              <strong>上传原始文档</strong>
+              <strong>{{ copy.uploadSourceTitle }}</strong>
               <span v-if="selectedBase.status === 'ACTIVE'">
-                PDF、Word 或 TXT，解析后自动进入授权检索
+                {{ copy.uploadSourceDescription }}
               </span>
-              <span v-else>知识库已停用，启用后才能上传。</span>
+              <span v-else>{{ copy.uploadDisabledDescription }}</span>
             </div>
             <div class="upload-controls">
               <el-select
                 v-model="uploadRoleCodes"
                 multiple
                 collapse-tags
-                placeholder="文档角色"
+                :placeholder="copy.documentRolesPlaceholder"
                 :disabled="selectedBase.status !== 'ACTIVE'"
               >
                 <el-option
@@ -175,7 +188,7 @@
               >
                 <template #trigger>
                   <el-button :disabled="selectedBase.status !== 'ACTIVE'">
-                    {{ selectedFile?.name || '选择文件' }}
+                    {{ selectedFile?.name || copy.chooseFile }}
                   </el-button>
                 </template>
               </el-upload>
@@ -185,110 +198,158 @@
                 :disabled="!selectedFile || uploadRoleCodes.length === 0 || selectedBase.status !== 'ACTIVE'"
                 @click="handleUpload"
               >
-                上传
+                {{ copy.upload }}
               </el-button>
             </div>
           </section>
 
-          <section class="documents-section" aria-labelledby="documents-title">
+          <section class="documents-section" :aria-labelledby="copy.documentsTitleId">
             <div class="section-title">
               <div>
-                <span class="eyebrow">内容</span>
-                <h2 id="documents-title">文档</h2>
+                <span class="eyebrow">{{ copy.contentEyebrow }}</span>
+                <h2 :id="copy.documentsTitleId">{{ copy.documentsTitle }}</h2>
               </div>
-              <span>{{ documents.length }} 份</span>
+              <span>{{ documentCountLabel }}</span>
             </div>
-            <el-table
-              :data="documents"
-              v-loading="loading"
-              empty-text="这个知识库还没有文档"
+
+            <div class="document-toolbar">
+              <el-input
+                v-model="documentKeyword"
+                clearable
+                :placeholder="copy.documentSearchPlaceholder"
+                @keyup.enter="applyDocumentFilters"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <el-select
+                v-model="documentStatus"
+                clearable
+                :placeholder="copy.documentStatusPlaceholder"
+              >
+                <el-option
+                  v-for="option in documentStatusOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+              <el-button type="primary" @click="applyDocumentFilters">{{ copy.filter }}</el-button>
+              <el-button @click="resetDocumentFilters">{{ copy.reset }}</el-button>
+            </div>
+
+            <div
+              ref="documentsScrollPanel"
+              class="documents-scroll-panel"
+              @scroll.passive="handleDocumentsScroll"
             >
-              <el-table-column label="文档" min-width="240">
-                <template #default="{ row }">
-                  <button
-                    class="document-link"
-                    type="button"
-                    :disabled="!row.accessible"
-                    @click="viewerDocument = row"
-                  >
-                    <el-icon><Document /></el-icon>
-                    <span>
-                      <strong>{{ row.name }}</strong>
-                      <small>#{{ row.id }} · {{ row.fileType }}</small>
-                    </span>
-                  </button>
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }">
-                  <el-tag :type="statusType(row.status)" effect="plain">
-                    {{ statusLabel(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="文档权限" min-width="220">
-                <template #default="{ row }">
-                  <div class="permission-cell">
-                    <el-tag :type="row.accessible ? 'success' : 'info'" size="small">
-                      {{ row.accessible ? '可阅读' : '无阅读权限' }}
+              <el-table
+                :data="documents"
+                v-loading="loading"
+                :empty-text="copy.documentsEmptyText"
+              >
+                <el-table-column :label="copy.documentColumn" min-width="240">
+                  <template #default="{ row }">
+                    <button
+                      class="document-link"
+                      type="button"
+                      :disabled="!row.accessible"
+                      @click="viewerDocument = row"
+                    >
+                      <el-icon><Document /></el-icon>
+                      <span>
+                        <strong>{{ row.name }}</strong>
+                        <small>{{ `#${row.id} - ${row.fileType}` }}</small>
+                      </span>
+                    </button>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="copy.statusColumn" width="120">
+                  <template #default="{ row }">
+                    <el-tag :type="statusType(row.status)" effect="plain">
+                      {{ statusLabel(row.status) }}
                     </el-tag>
-                    <span>
-                      {{ filterConfigurableAccessRoles(row.allowedRoles)
-                        .map(role => role.roleName).join('、') || '未配置' }}
-                    </span>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column v-if="authStore.isAdmin" label="操作" width="230" fixed="right">
-                <template #default="{ row }">
-                  <div class="row-actions">
-                    <el-button text @click="startPermissionEdit(row)">权限</el-button>
-                    <el-button text @click="startMove(row)">迁移</el-button>
-                    <el-button text type="danger" @click="removeDocument(row)">删除</el-button>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="copy.permissionsColumn" min-width="220">
+                  <template #default="{ row }">
+                    <div class="permission-cell">
+                      <el-tag :type="row.accessible ? 'success' : 'info'" size="small">
+                        {{ row.accessible ? copy.readable : copy.notReadable }}
+                      </el-tag>
+                      <span>
+                        {{ filterConfigurableAccessRoles(row.allowedRoles)
+                          .map(role => role.roleName).join(copy.listSeparator) || copy.unconfigured }}
+                      </span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="authStore.isAdmin"
+                  :label="copy.actionsColumn"
+                  width="230"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <div class="row-actions">
+                      <el-button text @click="startPermissionEdit(row)">{{ copy.permissionsAction }}</el-button>
+                      <el-button text @click="startMove(row)">{{ copy.moveAction }}</el-button>
+                      <el-button text type="danger" @click="removeDocument(row)">{{ copy.deleteAction }}</el-button>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <div
+                v-if="loadingMoreDocuments || documentPage.hasMore || documents.length > 0"
+                class="documents-scroll-footer"
+              >
+                <span v-if="loadingMoreDocuments">{{ copy.loadingMoreDocuments }}</span>
+                <span v-else-if="documentPage.hasMore">{{ copy.scrollForMore }}</span>
+                <span v-else-if="documents.length > 0">
+                  {{ `${copy.loadedAllPrefix}${documentPage.total}${copy.documentCountSuffix}` }}
+                </span>
+              </div>
+            </div>
           </section>
         </template>
 
         <section v-else class="content-empty">
           <el-icon><Collection /></el-icon>
-          <h2>{{ authStore.isAdmin ? '创建第一个知识库' : '暂无可访问的知识库' }}</h2>
+          <h2>{{ authStore.isAdmin ? copy.createFirstBase : copy.noAccessibleBases }}</h2>
           <p>
             {{ authStore.isAdmin
-              ? '知识库创建后，再按角色上传和管理文档。'
-              : '你的当前角色还没有被授权到任何知识库。' }}
+              ? copy.createFirstBaseDescription
+              : copy.noAccessibleBasesDescription }}
           </p>
           <el-button v-if="authStore.isAdmin" type="primary" @click="startCreate">
-            新建知识库
+            {{ copy.createBase }}
           </el-button>
         </section>
       </main>
     </div>
 
-    <el-dialog v-model="permissionDialog" title="调整文档权限" width="460px">
-      <p class="dialog-note">文档角色只能从当前知识库已授权的角色中选择。</p>
+    <el-dialog v-model="permissionDialog" :title="copy.editDocumentPermissions" width="460px">
+      <p class="dialog-note">{{ copy.editDocumentPermissionsHint }}</p>
       <el-checkbox-group v-model="editingRoleCodes" class="dialog-roles">
         <el-checkbox
           v-for="role in selectedBase?.roles || []"
           :key="role.id"
           :value="role.roleCode"
         >
-          {{ role.roleName }}（{{ role.roleCode }}）
+          {{ `${role.roleName}${copy.fullWidthLeftParen}${role.roleCode}${copy.fullWidthRightParen}` }}
         </el-checkbox>
       </el-checkbox-group>
       <template #footer>
-        <el-button @click="permissionDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveDocumentPermissions">保存</el-button>
+        <el-button @click="permissionDialog = false">{{ copy.cancel }}</el-button>
+        <el-button type="primary" @click="saveDocumentPermissions">{{ copy.save }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="moveDialog" title="迁移文档" width="460px">
-      <p class="dialog-note">
-        只显示已启用的目标知识库。目标库必须包含这份文档的全部角色。
-      </p>
-      <el-select v-model="moveTargetCode" placeholder="选择目标知识库" style="width: 100%">
+    <el-dialog v-model="moveDialog" :title="copy.moveDocumentTitle" width="460px">
+      <p class="dialog-note">{{ copy.moveDocumentHint }}</p>
+      <el-select v-model="moveTargetCode" :placeholder="copy.moveDocumentPlaceholder" style="width: 100%">
         <el-option
           v-for="base in moveTargets"
           :key="base.id"
@@ -297,9 +358,9 @@
         />
       </el-select>
       <template #footer>
-        <el-button @click="moveDialog = false">取消</el-button>
+        <el-button @click="moveDialog = false">{{ copy.cancel }}</el-button>
         <el-button type="primary" :disabled="!moveTargetCode" @click="confirmMove">
-          确认迁移
+          {{ copy.confirmMove }}
         </el-button>
       </template>
     </el-dialog>
@@ -311,7 +372,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Collection, Document, Plus, Refresh } from '@element-plus/icons-vue'
+import { Collection, Document, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DocumentViewer from '@/components/DocumentViewer.vue'
 import { getRoles } from '@/api/role'
@@ -320,19 +381,124 @@ import { useKnowledgeStore } from '@/stores/knowledge'
 import { filterConfigurableAccessRoles } from '@/constants/knowledgeBase'
 import { notifyError } from '@/utils/errorFeedback'
 
+const copy = {
+  pageTitle: '\u77e5\u8bc6\u5e93',
+  pageDescription: '\u6309\u4e1a\u52a1\u8303\u56f4\u7ec4\u7ec7\u6587\u6863\uff0c\u5e76\u7528\u73b0\u6709\u89d2\u8272\u63a7\u5236\u8bbf\u95ee\u3002',
+  createBase: '\u65b0\u5efa\u77e5\u8bc6\u5e93',
+  baseListAriaLabel: '\u77e5\u8bc6\u5e93\u5217\u8868',
+  baseSearchPlaceholder: '\u6309\u540d\u79f0\u6216\u7f16\u7801\u7b5b\u9009\u77e5\u8bc6\u5e93',
+  documentCountSuffix: '\u4efd\u6587\u6863',
+  disabled: '\u505c\u7528',
+  createEyebrow: '\u521b\u5efa',
+  editEyebrow: '\u8bbe\u7f6e',
+  collapse: '\u6536\u8d77',
+  baseNameLabel: '\u540d\u79f0',
+  baseCodeLabel: '\u7f16\u7801\uff0c\u521b\u5efa\u540e\u4e0d\u53ef\u4fee\u6539',
+  baseDescriptionLabel: '\u8bf4\u660e',
+  baseRolesLegend: '\u5141\u8bb8\u8bbf\u95ee\u7684\u89d2\u8272',
+  fullWidthLeftParen: '\uff08',
+  fullWidthRightParen: '\uff09',
+  saveSettings: '\u4fdd\u5b58\u8bbe\u7f6e',
+  disableBase: '\u505c\u7528\u77e5\u8bc6\u5e93',
+  enableBase: '\u542f\u7528\u77e5\u8bc6\u5e93',
+  deleteBase: '\u5220\u9664\u77e5\u8bc6\u5e93',
+  deleteBaseHint: '\u8bf7\u5148\u8fc1\u79fb\u6216\u5220\u9664\u5e93\u5185\u6587\u6863',
+  disabledStatus: '\u5df2\u505c\u7528',
+  noDescription: '\u6682\u65e0\u8bf4\u660e',
+  baseRolesTitle: '\u5e93\u6743\u9650',
+  refreshDocuments: '\u5237\u65b0\u6587\u6863',
+  refresh: '\u5237\u65b0',
+  baseSettings: '\u77e5\u8bc6\u5e93\u8bbe\u7f6e',
+  uploadSourceTitle: '\u4e0a\u4f20\u539f\u59cb\u6587\u6863',
+  uploadSourceDescription: 'PDF\u3001Word \u6216 TXT\uff0c\u89e3\u6790\u540e\u81ea\u52a8\u8fdb\u5165\u6388\u6743\u68c0\u7d22\u3002',
+  uploadDisabledDescription: '\u77e5\u8bc6\u5e93\u5df2\u505c\u7528\uff0c\u542f\u7528\u540e\u624d\u80fd\u4e0a\u4f20\u3002',
+  documentRolesPlaceholder: '\u6587\u6863\u89d2\u8272',
+  chooseFile: '\u9009\u62e9\u6587\u4ef6',
+  upload: '\u4e0a\u4f20',
+  contentEyebrow: '\u5185\u5bb9',
+  documentsTitle: '\u6587\u6863',
+  documentsTitleId: 'documents-title',
+  documentSearchPlaceholder: '\u6309\u6587\u6863\u540d\u79f0\u7b5b\u9009',
+  documentStatusPlaceholder: '\u5168\u90e8\u72b6\u6001',
+  filter: '\u7b5b\u9009',
+  reset: '\u91cd\u7f6e',
+  documentsEmptyText: '\u8fd9\u4e2a\u77e5\u8bc6\u5e93\u8fd8\u6ca1\u6709\u6587\u6863',
+  documentColumn: '\u6587\u6863',
+  statusColumn: '\u72b6\u6001',
+  permissionsColumn: '\u6587\u6863\u6743\u9650',
+  readable: '\u53ef\u9605\u8bfb',
+  notReadable: '\u65e0\u9605\u8bfb\u6743\u9650',
+  unconfigured: '\u672a\u914d\u7f6e',
+  actionsColumn: '\u64cd\u4f5c',
+  permissionsAction: '\u6743\u9650',
+  moveAction: '\u8fc1\u79fb',
+  deleteAction: '\u5220\u9664',
+  loadingMoreDocuments: '\u6b63\u5728\u52a0\u8f7d\u66f4\u591a\u6587\u6863\u2026',
+  scrollForMore: '\u7ee7\u7eed\u4e0b\u6ed1\u52a0\u8f7d\u66f4\u591a',
+  loadedAllPrefix: '\u5df2\u52a0\u8f7d\u5168\u90e8 ',
+  createFirstBase: '\u521b\u5efa\u7b2c\u4e00\u4e2a\u77e5\u8bc6\u5e93',
+  noAccessibleBases: '\u6682\u65e0\u53ef\u8bbf\u95ee\u7684\u77e5\u8bc6\u5e93',
+  createFirstBaseDescription: '\u77e5\u8bc6\u5e93\u521b\u5efa\u540e\uff0c\u518d\u6309\u89d2\u8272\u4e0a\u4f20\u548c\u7ba1\u7406\u6587\u6863\u3002',
+  noAccessibleBasesDescription: '\u4f60\u7684\u5f53\u524d\u89d2\u8272\u8fd8\u6ca1\u6709\u88ab\u6388\u6743\u5230\u4efb\u4f55\u77e5\u8bc6\u5e93\u3002',
+  editDocumentPermissions: '\u8c03\u6574\u6587\u6863\u6743\u9650',
+  editDocumentPermissionsHint: '\u6587\u6863\u89d2\u8272\u53ea\u80fd\u4ece\u5f53\u524d\u77e5\u8bc6\u5e93\u5df2\u6388\u6743\u7684\u89d2\u8272\u4e2d\u9009\u62e9\u3002',
+  moveDocumentTitle: '\u8fc1\u79fb\u6587\u6863',
+  moveDocumentHint: '\u53ea\u663e\u793a\u5df2\u542f\u7528\u7684\u76ee\u6807\u77e5\u8bc6\u5e93\u3002\u76ee\u6807\u5e93\u5fc5\u987b\u5305\u542b\u8fd9\u4efd\u6587\u6863\u7684\u5168\u90e8\u89d2\u8272\u3002',
+  moveDocumentPlaceholder: '\u9009\u62e9\u76ee\u6807\u77e5\u8bc6\u5e93',
+  confirmMove: '\u786e\u8ba4\u8fc1\u79fb',
+  cancel: '\u53d6\u6d88',
+  save: '\u4fdd\u5b58',
+  listSeparator: '\u3001',
+  noMatchedBases: '\u6ca1\u6709\u5339\u914d\u7684\u77e5\u8bc6\u5e93',
+  noMatchedBasesDescription: '\u6362\u4e2a\u5173\u952e\u8bcd\u8bd5\u8bd5\uff0c\u652f\u6301\u6309\u540d\u79f0\u6216\u7f16\u7801\u7b5b\u9009\u3002',
+  emptyBases: '\u8fd8\u6ca1\u6709\u77e5\u8bc6\u5e93',
+  emptyBasesAdminDescription: '\u521b\u5efa\u7b2c\u4e00\u4e2a\u77e5\u8bc6\u5e93\u540e\u5373\u53ef\u4e0a\u4f20\u6587\u6863\u3002',
+  emptyBasesUserDescription: '\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u4e3a\u4f60\u7684\u89d2\u8272\u6388\u6743\u3002',
+  createBaseTitle: '\u65b0\u5efa\u77e5\u8bc6\u5e93',
+  editBasePrefix: '\u8bbe\u7f6e',
+  baseSaveValidation: '\u8bf7\u586b\u5199\u540d\u79f0\u5e76\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u89d2\u8272',
+  baseCreated: '\u77e5\u8bc6\u5e93\u5df2\u521b\u5efa',
+  baseMissingAfterRefresh: '\u77e5\u8bc6\u5e93\u5df2\u4e0d\u5b58\u5728\uff0c\u8bf7\u5237\u65b0\u540e\u91cd\u8bd5',
+  baseSaved: '\u77e5\u8bc6\u5e93\u8bbe\u7f6e\u5df2\u4fdd\u5b58',
+  baseEnabled: '\u77e5\u8bc6\u5e93\u5df2\u542f\u7528',
+  baseDisabled: '\u77e5\u8bc6\u5e93\u5df2\u505c\u7528',
+  deleteBaseConfirmTitle: '\u5220\u9664\u77e5\u8bc6\u5e93',
+  deleteBaseConfirmButton: '\u5220\u9664',
+  baseDeleted: '\u77e5\u8bc6\u5e93\u5df2\u5220\u9664',
+  uploadSuccess: '\u6587\u6863\u5df2\u4e0a\u4f20\uff0c\u6b63\u5728\u89e3\u6790',
+  documentPermissionValidation: '\u6587\u6863\u81f3\u5c11\u9700\u8981\u4e00\u4e2a\u53ef\u8bfb\u89d2\u8272',
+  documentPermissionSaved: '\u6587\u6863\u6743\u9650\u5df2\u66f4\u65b0',
+  documentMoved: '\u6587\u6863\u5df2\u8fc1\u79fb',
+  deleteDocumentTitle: '\u5220\u9664\u6587\u6863',
+  documentDeleted: '\u6587\u6863\u5df2\u5220\u9664',
+  pending: '\u5f85\u5904\u7406',
+  processing: '\u5904\u7406\u4e2d',
+  completed: '\u5df2\u5b8c\u6210',
+  failed: '\u5931\u8d25',
+  deleting: '\u5220\u9664\u4e2d',
+  pageLoadFailed: '\u77e5\u8bc6\u5e93\u52a0\u8f7d\u5931\u8d25'
+}
+
 const authStore = useAuthStore()
 const knowledgeStore = useKnowledgeStore()
 const {
   documents,
   loading,
+  loadingMoreDocuments,
   knowledgeBases,
   adminKnowledgeBases,
-  knowledgeBaseCode
+  knowledgeBaseCode,
+  documentFilters,
+  documentPage
 } = storeToRefs(knowledgeStore)
 
 const roles = ref([])
 const editorMode = ref('')
 const savingBase = ref(false)
+const baseSearchKeyword = ref('')
+const documentKeyword = ref(documentFilters.value.keyword)
+const documentStatus = ref(documentFilters.value.status)
+const documentsScrollPanel = ref(null)
 const selectedFile = ref(null)
 const uploadRoleCodes = ref([])
 const uploading = ref(false)
@@ -344,25 +510,76 @@ const moveDialog = ref(false)
 const movingDocument = ref(null)
 const moveTargetCode = ref('')
 const baseForm = reactive({ code: '', name: '', description: '', roleIds: [] })
+
+const documentStatusOptions = [
+  { label: copy.pending, value: 'PENDING' },
+  { label: copy.processing, value: 'PROCESSING' },
+  { label: copy.completed, value: 'COMPLETED' },
+  { label: copy.failed, value: 'FAILED' },
+  { label: copy.deleting, value: 'DELETING' }
+]
+
 const configurableRoles = computed(() =>
   filterConfigurableAccessRoles(roles.value)
 )
 
-const visibleBases = computed(() =>
+const rawVisibleBases = computed(() =>
   authStore.isAdmin ? adminKnowledgeBases.value : knowledgeBases.value
 )
+
+const visibleBases = computed(() => {
+  const keyword = baseSearchKeyword.value.trim().toLowerCase()
+  if (!keyword) return rawVisibleBases.value
+  return rawVisibleBases.value.filter(base =>
+    [base.name, base.code, base.description]
+      .filter(value => typeof value === 'string')
+      .some(value => value.toLowerCase().includes(keyword))
+  )
+})
+
 const selectedBase = computed(() =>
-  visibleBases.value.find(base => base.code === knowledgeBaseCode.value) || null
+  rawVisibleBases.value.find(base => base.code === knowledgeBaseCode.value) || null
 )
+
+const editorTitle = computed(() =>
+  editorMode.value === 'create'
+    ? copy.createBaseTitle
+    : `${copy.editBasePrefix} ${selectedBase.value?.name || ''}`
+)
+
 const moveTargets = computed(() =>
   adminKnowledgeBases.value.filter(base =>
     base.status === 'ACTIVE' && base.code !== knowledgeBaseCode.value
   )
 )
 
+const documentCountLabel = computed(() =>
+  documentPage.value.total > 0
+    ? `${documents.value.length} / ${documentPage.value.total} ${copy.documentCountSuffix}`
+    : `${documents.value.length} ${copy.documentCountSuffix}`
+)
+
+const navigationEmptyTitle = computed(() =>
+  baseSearchKeyword.value.trim() ? copy.noMatchedBases : copy.emptyBases
+)
+
+const navigationEmptyDescription = computed(() => {
+  if (baseSearchKeyword.value.trim()) {
+    return copy.noMatchedBasesDescription
+  }
+  return authStore.isAdmin
+    ? copy.emptyBasesAdminDescription
+    : copy.emptyBasesUserDescription
+})
+
 watch(selectedBase, base => {
   uploadRoleCodes.value = (base?.roles || []).map(role => role.roleCode)
-})
+}, { immediate: true })
+
+watch(documentFilters, filters => {
+  documentKeyword.value = filters.keyword
+  documentStatus.value = filters.status
+}, { deep: true })
 
 onMounted(async () => {
   try {
@@ -372,16 +589,21 @@ onMounted(async () => {
     }
     const results = await Promise.all(requests)
     if (authStore.isAdmin) roles.value = results.at(-1) || []
-    if (knowledgeBaseCode.value) await knowledgeStore.fetchDocuments()
+    if (knowledgeBaseCode.value) await knowledgeStore.refreshDocuments()
   } catch (error) {
-    notifyError(error, '知识库加载失败')
+    notifyError(error, copy.pageLoadFailed)
   }
 })
 
+const resetDocumentScroll = () => {
+  documentsScrollPanel.value?.scrollTo?.({ top: 0 })
+}
+
 const selectBase = async code => {
   editorMode.value = ''
+  resetDocumentScroll()
   knowledgeBaseCode.value = code
-  await knowledgeStore.fetchDocuments(code)
+  await knowledgeStore.refreshDocuments(code)
 }
 
 const resetForm = () => Object.assign(baseForm, {
@@ -410,7 +632,7 @@ const startEdit = async () => {
 
 const saveBase = async () => {
   if (!baseForm.name.trim() || baseForm.roleIds.length === 0) {
-    ElMessage.warning('请填写名称并至少选择一个角色')
+    ElMessage.warning(copy.baseSaveValidation)
     return
   }
   savingBase.value = true
@@ -425,7 +647,7 @@ const saveBase = async () => {
       knowledgeBaseCode.value =
         adminKnowledgeBases.value.find(base => base.code === baseForm.code.trim().toLowerCase())?.code
         || knowledgeBaseCode.value
-      ElMessage.success('知识库已创建')
+      ElMessage.success(copy.baseCreated)
     } else {
       const editedBaseId = selectedBase.value.id
       const editedBaseCode = selectedBase.value.code
@@ -437,17 +659,17 @@ const saveBase = async () => {
       })
       const refreshed = adminKnowledgeBases.value.find(base => base.id === editedBaseId)
       if (!refreshed) {
-        throw new Error('知识库已不存在，请刷新后重试')
+        throw new Error(copy.baseMissingAfterRefresh)
       }
       await knowledgeStore.updateBaseRoles(editedBaseId, {
         roleIds: baseForm.roleIds,
         version: refreshed.version
       })
       knowledgeBaseCode.value = editedBaseCode
-      ElMessage.success('知识库设置已保存')
+      ElMessage.success(copy.baseSaved)
     }
     editorMode.value = ''
-    if (knowledgeBaseCode.value) await knowledgeStore.fetchDocuments()
+    if (knowledgeBaseCode.value) await knowledgeStore.refreshDocuments()
   } finally {
     savingBase.value = false
   }
@@ -459,19 +681,23 @@ const toggleStatus = async () => {
     status: next,
     version: selectedBase.value.version
   })
-  ElMessage.success(next === 'ACTIVE' ? '知识库已启用' : '知识库已停用')
+  ElMessage.success(next === 'ACTIVE' ? copy.baseEnabled : copy.baseDisabled)
   editorMode.value = ''
 }
 
 const removeSelectedBase = async () => {
   await ElMessageBox.confirm(
-    `确认删除空知识库“${selectedBase.value.name}”？`,
-    '删除知识库',
-    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    `${copy.deleteBase}${copy.fullWidthLeftParen}${selectedBase.value.name}${copy.fullWidthRightParen}\uff1f`,
+    copy.deleteBaseConfirmTitle,
+    {
+      type: 'warning',
+      confirmButtonText: copy.deleteBaseConfirmButton,
+      cancelButtonText: copy.cancel
+    }
   )
   await knowledgeStore.removeBase(selectedBase.value.id)
   editorMode.value = ''
-  ElMessage.success('知识库已删除')
+  ElMessage.success(copy.baseDeleted)
 }
 
 const handleFileChange = uploadFile => {
@@ -487,10 +713,40 @@ const handleUpload = async () => {
       uploadRoleCodes.value
     )
     selectedFile.value = null
-    ElMessage.success('文档已上传，正在解析')
+    ElMessage.success(copy.uploadSuccess)
   } finally {
     uploading.value = false
   }
+}
+
+const applyDocumentFilters = async () => {
+  resetDocumentScroll()
+  await knowledgeStore.setDocumentFilters({
+    keyword: documentKeyword.value,
+    status: documentStatus.value
+  })
+}
+
+const resetDocumentFilters = async () => {
+  documentKeyword.value = ''
+  documentStatus.value = ''
+  resetDocumentScroll()
+  await knowledgeStore.setDocumentFilters({ keyword: '', status: '' })
+}
+
+const handleDocumentsScroll = async event => {
+  const target = event.target
+  if (!target) return
+  const distanceToBottom =
+    target.scrollHeight - target.scrollTop - target.clientHeight
+  if (distanceToBottom <= 80) {
+    await knowledgeStore.loadMoreDocuments()
+  }
+}
+
+const refreshDocuments = async () => {
+  resetDocumentScroll()
+  await knowledgeStore.refreshDocuments()
 }
 
 const startPermissionEdit = document => {
@@ -502,12 +758,12 @@ const startPermissionEdit = document => {
 
 const saveDocumentPermissions = async () => {
   if (editingRoleCodes.value.length === 0) {
-    ElMessage.warning('文档至少需要一个可读角色')
+    ElMessage.warning(copy.documentPermissionValidation)
     return
   }
   await knowledgeStore.updatePermissions(editingDocument.value.id, editingRoleCodes.value)
   permissionDialog.value = false
-  ElMessage.success('文档权限已更新')
+  ElMessage.success(copy.documentPermissionSaved)
 }
 
 const startMove = document => {
@@ -519,32 +775,36 @@ const startMove = document => {
 const confirmMove = async () => {
   await knowledgeStore.transferDocument(movingDocument.value.id, moveTargetCode.value)
   moveDialog.value = false
-  ElMessage.success('文档已迁移')
+  ElMessage.success(copy.documentMoved)
 }
 
 const removeDocument = async document => {
   await ElMessageBox.confirm(
-    `确认删除“${document.name}”及其向量索引？`,
-    '删除文档',
-    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    `${copy.deleteAction}${copy.fullWidthLeftParen}${document.name}${copy.fullWidthRightParen}\uff1f`,
+    copy.deleteDocumentTitle,
+    {
+      type: 'warning',
+      confirmButtonText: copy.deleteBaseConfirmButton,
+      cancelButtonText: copy.cancel
+    }
   )
   await knowledgeStore.remove(document.id)
-  ElMessage.success('文档已删除')
+  ElMessage.success(copy.documentDeleted)
 }
 
 const statusLabel = status => ({
-  PENDING: '待处理',
-  PROCESSING: '处理中',
-  COMPLETED: '已完成',
-  FAILED: '失败',
-  DELETING: '删除中'
+  PENDING: copy.pending,
+  PROCESSING: copy.processing,
+  COMPLETED: copy.completed,
+  FAILED: copy.failed,
+  DELETING: copy.deleting
 }[status] || status)
+
 const statusType = status => ({
   COMPLETED: 'success',
   FAILED: 'danger',
   PROCESSING: 'warning'
 }[status] || 'info')
-const fetchDocuments = () => knowledgeStore.fetchDocuments()
 </script>
 
 <style scoped>
@@ -591,10 +851,25 @@ const fetchDocuments = () => knowledgeStore.fetchDocuments()
 
 .base-navigation {
   min-height: 0;
-  overflow-y: auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
   padding: 14px 10px;
   border-right: 1px solid var(--border);
   background: var(--surface);
+  overflow: hidden;
+}
+
+.navigation-search {
+  padding: 0 2px;
+}
+
+.base-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+  padding-right: 2px;
 }
 
 .base-item {
@@ -730,7 +1005,8 @@ const fetchDocuments = () => knowledgeStore.fetchDocuments()
 
 .upload-strip span,
 .dialog-note,
-.delete-hint {
+.delete-hint,
+.documents-scroll-footer {
   color: var(--text-muted);
   font-size: 0.76rem;
 }
@@ -746,10 +1022,44 @@ const fetchDocuments = () => knowledgeStore.fetchDocuments()
 
 .upload-controls .el-select { width: 190px; }
 
-.documents-section { margin-top: 28px; }
-.section-title { margin-bottom: 12px; }
+.documents-section {
+  margin-top: 28px;
+  display: grid;
+  gap: 12px;
+}
+
 .section-title h2 { font-size: 1.05rem; }
 .section-title > span { color: var(--text-muted); font-size: 0.8rem; }
+
+.document-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.document-toolbar .el-input {
+  width: min(340px, 100%);
+}
+
+.document-toolbar .el-select {
+  width: 160px;
+}
+
+.documents-scroll-panel {
+  overflow: auto;
+  max-height: min(62vh, 720px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.documents-scroll-footer {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
 
 .eyebrow {
   color: var(--accent);
@@ -852,11 +1162,14 @@ const fetchDocuments = () => knowledgeStore.fetchDocuments()
 @media (max-width: 800px) {
   .workspace { grid-template-columns: 1fr; }
   .base-navigation {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+  }
+  .base-list {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
   }
   .base-item { min-width: 180px; }
   .navigation-empty { min-width: 100%; padding: 20px; }
@@ -872,5 +1185,9 @@ const fetchDocuments = () => knowledgeStore.fetchDocuments()
   .full-row { grid-column: auto; }
   .role-options,
   .dialog-roles { grid-template-columns: 1fr; }
+  .document-toolbar .el-input,
+  .document-toolbar .el-select {
+    width: 100%;
+  }
 }
 </style>

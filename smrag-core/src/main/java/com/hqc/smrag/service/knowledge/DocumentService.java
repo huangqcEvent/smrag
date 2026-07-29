@@ -2,6 +2,8 @@ package com.hqc.smrag.service.knowledge;
 
 import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.hqc.smrag.common.PageResult;
 import com.hqc.smrag.config.RagProperties;
 import com.hqc.smrag.config.MinioStorageProperties;
 import com.hqc.smrag.entity.KnowledgeChunk;
@@ -65,6 +67,8 @@ public class DocumentService {
 
     private static final String DEFAULT_UPLOAD_DIR =
         System.getProperty("user.dir") + File.separator + "uploads";
+    private static final int DEFAULT_DOCUMENT_PAGE_SIZE = 20;
+    private static final int MAX_DOCUMENT_PAGE_SIZE = 100;
     private final KnowledgeDocumentMapper documentMapper;
     private final KnowledgeChunkMapper chunkMapper;
     private final DocumentUploadPersistenceService uploadPersistenceService;
@@ -239,12 +243,66 @@ public class DocumentService {
      * @param knowledgeBaseId 知识库ID
      * @return 文档列表
      */
-    public List<KnowledgeDocument> listDocuments(String knowledgeBaseId) {
+    public PageResult<KnowledgeDocument> listDocuments(
+        String knowledgeBaseId,
+        Integer pageNum,
+        Integer pageSize,
+        String keyword,
+        String status
+    ) {
         Long normalized = knowledgeBaseService.requireByCode(knowledgeBaseId).getId();
-        return documentMapper.selectList(
+        long current = normalizePageNum(pageNum);
+        long size = normalizePageSize(pageSize);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedStatus = normalizeStatus(status);
+        Page<KnowledgeDocument> page = documentMapper.selectPage(
+            new Page<>(current, size),
             Wrappers.<KnowledgeDocument>lambdaQuery()
                 .eq(KnowledgeDocument::getKnowledgeBaseId, normalized)
+                .like(
+                    normalizedKeyword != null,
+                    KnowledgeDocument::getName,
+                    normalizedKeyword
+                )
+                .eq(
+                    normalizedStatus != null,
+                    KnowledgeDocument::getStatus,
+                    normalizedStatus
+                )
+                .orderByDesc(KnowledgeDocument::getCreateTime)
+                .orderByDesc(KnowledgeDocument::getId)
         );
+        return new PageResult<>(
+            page.getRecords(),
+            page.getTotal(),
+            page.getCurrent(),
+            page.getSize(),
+            page.getCurrent() * page.getSize() < page.getTotal()
+        );
+    }
+
+    private long normalizePageNum(Integer pageNum) {
+        return pageNum == null || pageNum < 1 ? 1L : pageNum;
+    }
+
+    private long normalizePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_DOCUMENT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_DOCUMENT_PAGE_SIZE);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) return null;
+        String normalized = keyword.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) return null;
+        String normalized = status.trim();
+        if (normalized.isEmpty()) return null;
+        return normalized.toUpperCase(Locale.ROOT);
     }
 
     /**

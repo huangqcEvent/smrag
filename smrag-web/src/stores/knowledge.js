@@ -23,13 +23,21 @@ import {
   validateKnowledgeBaseSelection
 } from '@/constants/knowledgeBase'
 import { resetKnowledgeAccountState } from './knowledgeAccountState'
+import {
+  createDocumentPageState,
+  mergeDocumentPage,
+  normalizeDocumentFilters
+} from './knowledgeDocuments'
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
   const documents = ref([])
   const loading = ref(false)
+  const loadingMoreDocuments = ref(false)
   const knowledgeBases = ref([])
   const adminKnowledgeBases = ref([])
   const knowledgeBaseCode = ref('')
+  const documentFilters = ref(normalizeDocumentFilters())
+  const documentPage = ref(createDocumentPageState())
   const selectedKnowledgeBaseCodes = ref([])
   let accountEpoch = 0
   let documentRequestEpoch = 0
@@ -42,6 +50,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       adminKnowledgeBases.value,
       adminCatalogRequested
     )
+  }
+
+  const resetDocumentState = () => {
+    documents.value = []
+    documentPage.value = createDocumentPageState()
   }
 
   const fetchKnowledgeBases = async () => {
@@ -65,42 +78,93 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     reconcileManagementSelection()
   }
 
-  const fetchDocuments = async (code = knowledgeBaseCode.value) => {
+  const fetchDocuments = async (code = knowledgeBaseCode.value, options = {}) => {
     if (!code) {
-      documents.value = []
+      resetDocumentState()
       return
     }
+
+    const append = options.append === true
+    const normalizedFilters = normalizeDocumentFilters(
+      options.filters ?? documentFilters.value
+    )
+    const pageNum = Number.isInteger(options.pageNum) && options.pageNum > 0
+      ? options.pageNum
+      : append
+        ? documentPage.value.pageNum + 1
+        : 1
     const requestAccountEpoch = accountEpoch
     const requestId = ++documentRequestEpoch
     knowledgeBaseCode.value = code
-    loading.value = true
+    if (append) {
+      loadingMoreDocuments.value = true
+    } else {
+      loading.value = true
+    }
     try {
-      const next = await getDocumentList(code)
+      const next = await getDocumentList({
+        knowledgeBaseCode: code,
+        pageNum,
+        pageSize: documentPage.value.pageSize,
+        ...normalizedFilters
+      })
       if (requestAccountEpoch === accountEpoch
         && requestId === documentRequestEpoch
         && knowledgeBaseCode.value === code) {
-        documents.value = Array.isArray(next) ? next : []
+        documentFilters.value = normalizedFilters
+        const merged = mergeDocumentPage(
+          append ? documents.value : [],
+          next
+        )
+        documents.value = merged.documents
+        documentPage.value = merged.page
       }
     } finally {
       if (requestAccountEpoch === accountEpoch
-        && requestId === documentRequestEpoch) loading.value = false
+        && requestId === documentRequestEpoch) {
+        loading.value = false
+        loadingMoreDocuments.value = false
+      }
     }
+  }
+
+  const refreshDocuments = async (
+    code = knowledgeBaseCode.value,
+    filters = documentFilters.value
+  ) => {
+    await fetchDocuments(code, { filters, pageNum: 1, append: false })
+  }
+
+  const loadMoreDocuments = async () => {
+    if (!knowledgeBaseCode.value
+      || loading.value
+      || loadingMoreDocuments.value
+      || !documentPage.value.hasMore) {
+      return
+    }
+    await fetchDocuments(knowledgeBaseCode.value, { append: true })
+  }
+
+  const setDocumentFilters = async filters => {
+    const nextFilters = normalizeDocumentFilters(filters)
+    documentFilters.value = nextFilters
+    await refreshDocuments(knowledgeBaseCode.value, nextFilters)
   }
 
   const upload = async (file, code, roles) => {
     await uploadDocument(file, code, roles)
-    await fetchDocuments(code)
+    await refreshDocuments(code)
   }
 
   const remove = async id => {
     await deleteDocument(id, knowledgeBaseCode.value)
-    await fetchDocuments()
+    await refreshDocuments()
     await fetchAdminKnowledgeBases()
   }
 
   const updatePermissions = async (id, roleCodes) => {
     await setDocumentPermissions(id, roleCodes)
-    await fetchDocuments()
+    await refreshDocuments()
   }
 
   const createBase = async data => {
@@ -130,7 +194,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
 
   const transferDocument = async (id, targetCode) => {
     await moveDocument(id, targetCode)
-    await fetchDocuments()
+    await refreshDocuments()
     await fetchAdminKnowledgeBases()
   }
 
@@ -143,9 +207,12 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     const state = {
       documents: documents.value,
       loading: loading.value,
+      loadingMoreDocuments: loadingMoreDocuments.value,
       knowledgeBases: knowledgeBases.value,
       adminKnowledgeBases: adminKnowledgeBases.value,
       knowledgeBaseCode: knowledgeBaseCode.value,
+      documentFilters: documentFilters.value,
+      documentPage: documentPage.value,
       selectedKnowledgeBaseCodes: selectedKnowledgeBaseCodes.value,
       accountEpoch,
       documentRequestEpoch,
@@ -154,9 +221,12 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     resetKnowledgeAccountState(state)
     documents.value = state.documents
     loading.value = state.loading
+    loadingMoreDocuments.value = state.loadingMoreDocuments
     knowledgeBases.value = state.knowledgeBases
     adminKnowledgeBases.value = state.adminKnowledgeBases
     knowledgeBaseCode.value = state.knowledgeBaseCode
+    documentFilters.value = state.documentFilters
+    documentPage.value = state.documentPage
     selectedKnowledgeBaseCodes.value = state.selectedKnowledgeBaseCodes
     accountEpoch = state.accountEpoch
     documentRequestEpoch = state.documentRequestEpoch
@@ -166,13 +236,19 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   return {
     documents,
     loading,
+    loadingMoreDocuments,
     knowledgeBases,
     adminKnowledgeBases,
     knowledgeBaseCode,
+    documentFilters,
+    documentPage,
     selectedKnowledgeBaseCodes,
     fetchKnowledgeBases,
     fetchAdminKnowledgeBases,
     fetchDocuments,
+    refreshDocuments,
+    loadMoreDocuments,
+    setDocumentFilters,
     upload,
     remove,
     updatePermissions,

@@ -1,5 +1,6 @@
 package com.hqc.smrag.controller;
 
+import com.hqc.smrag.common.PageResult;
 import com.hqc.smrag.common.Result;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.service.DocPermissionService;
@@ -120,8 +121,12 @@ public class KnowledgeController {
      */
     @GetMapping("/list")
     @PreAuthorize("isAuthenticated()")
-    public Result<List<DocumentVO>> list(
+    public Result<PageResult<DocumentVO>> list(
         @RequestParam("knowledgeBaseCode") String knowledgeBaseCode,
+        @RequestParam(value = "pageNum", required = false) Integer pageNum,
+        @RequestParam(value = "pageSize", required = false) Integer pageSize,
+        @RequestParam(value = "keyword", required = false) String keyword,
+        @RequestParam(value = "status", required = false) String status,
         @AuthenticationPrincipal Long userId
     ) {
         var knowledgeBase = knowledgeBaseService.requireByCode(knowledgeBaseCode);
@@ -129,16 +134,23 @@ public class KnowledgeController {
             permissionDecisionService.requireKnowledgeBaseAccess(
                 userId, List.of(knowledgeBase.getId()));
         }
-        List<Long> accessibleDocIds =
-            docPermissionService.getAccessibleDocIds(userId, knowledgeBase.getId());
-        List<KnowledgeDocument> allDocs =
-            documentService.listDocuments(knowledgeBaseCode);
+        PageResult<KnowledgeDocument> page = documentService.listDocuments(
+            knowledgeBaseCode,
+            pageNum,
+            pageSize,
+            keyword,
+            status
+        );
 
+        List<Long> documentIds = page.records().stream()
+            .map(KnowledgeDocument::getId)
+            .toList();
+        List<Long> accessibleDocIds =
+            docPermissionService.getAccessibleDocIds(userId, documentIds);
         Set<Long> accessibleDocIdSet = Set.copyOf(accessibleDocIds);
-        List<Long> documentIds = allDocs.stream().map(KnowledgeDocument::getId).toList();
         Map<Long, List<RoleVO>> rolesByDocument =
             docPermissionService.getReadableRolesByDocumentIds(documentIds);
-        List<DocumentVO> documents = allDocs.stream()
+        List<DocumentVO> documents = page.records().stream()
             .map(doc -> {
                 DocumentVO vo = new DocumentVO();
                 vo.setAccessible(accessibleDocIdSet.contains(doc.getId()));
@@ -152,7 +164,13 @@ public class KnowledgeController {
                 return vo;
             })
             .toList();
-        return Result.success(documents);
+        return Result.success(new PageResult<>(
+            documents,
+            page.total(),
+            page.pageNum(),
+            page.pageSize(),
+            page.hasMore()
+        ));
     }
 
     /**

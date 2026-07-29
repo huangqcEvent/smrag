@@ -22,11 +22,23 @@ export function uploadDocument(
 }
 
 // 获取文档列表
-export function getDocumentList(knowledgeBaseCode) {
+export function getDocumentList({
+  knowledgeBaseCode,
+  pageNum,
+  pageSize,
+  keyword,
+  status
+}) {
   return request({
     url: '/knowledge/list',
     method: 'get',
-    params: { knowledgeBaseCode },
+    params: {
+      knowledgeBaseCode,
+      pageNum,
+      pageSize,
+      ...(keyword ? { keyword } : {}),
+      ...(status ? { status } : {})
+    },
     errorMessage: '加载文档列表失败'
   })
 }
