@@ -4,6 +4,7 @@ import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.config.MinioStorageProperties;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.enums.ChunkingStrategy;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
@@ -127,8 +128,13 @@ public class DocumentIngestionService {
                 throw new IllegalStateException(
                     "Document " + document.getId() + " has no readable roles");
             }
+            ChunkingStrategy chunkingStrategy =
+                ChunkingStrategy.fromPersisted(
+                    document.getChunkingStrategy()
+                );
             chunks = chunker.chunk(
                 sources,
+                chunkingStrategy,
                 document.getKnowledgeBaseId(),
                 document.getId(),
                 document.getName(),

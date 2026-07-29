@@ -9,6 +9,7 @@ import com.hqc.smrag.service.DocPermissionService;
 import com.hqc.smrag.service.storage.DocumentStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -63,6 +64,8 @@ class DocumentMinioUploadTest {
 
     @Test
     void writesObjectKeyUnderDocumentIdThenCompletesDatabaseTransaction() throws Exception {
+        ArgumentCaptor<KnowledgeDocument> placeholder =
+            ArgumentCaptor.forClass(KnowledgeDocument.class);
         when(persistence.createPlaceholder(any())).thenAnswer(invocation -> {
             KnowledgeDocument document = invocation.getArgument(0);
             document.setId(42L);
@@ -71,6 +74,8 @@ class DocumentMinioUploadTest {
 
         service().uploadDocument(file(), "default", List.of("USER"));
 
+        verify(persistence).createPlaceholder(placeholder.capture());
+        assertThat(placeholder.getValue().getChunkingStrategy()).isEqualTo("TOKEN");
         var key = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(storage).put(key.capture(), any(), eq(7L), eq("application/pdf"));
         assertThat(key.getValue()).matches("rag/document/42/[0-9a-f-]+-document.pdf");
@@ -78,6 +83,43 @@ class DocumentMinioUploadTest {
             eq(42L), eq(key.getValue()),
             eq("ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73"),
             eq(List.of("USER")));
+    }
+
+    @Test
+    void normalizesAndPersistsExplicitRecursiveStrategy() throws Exception {
+        ArgumentCaptor<KnowledgeDocument> placeholder =
+            ArgumentCaptor.forClass(KnowledgeDocument.class);
+        when(persistence.createPlaceholder(any())).thenAnswer(invocation -> {
+            KnowledgeDocument document = invocation.getArgument(0);
+            document.setId(42L);
+            return 42L;
+        });
+
+        service().uploadDocument(
+            file(),
+            "default",
+            List.of("USER"),
+            " recursive "
+        );
+
+        verify(persistence).createPlaceholder(placeholder.capture());
+        assertThat(placeholder.getValue().getChunkingStrategy())
+            .isEqualTo("RECURSIVE");
+    }
+
+    @Test
+    void rejectsInvalidStrategyBeforeCreatingPlaceholderOrWritingObject() {
+        assertThatThrownBy(() -> service().uploadDocument(
+            file(),
+            "default",
+            List.of("USER"),
+            "CHARACTERS"
+        )).isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("TOKEN")
+            .hasMessageContaining("RECURSIVE");
+
+        verify(persistence, never()).createPlaceholder(any());
+        verify(storage, never()).put(any(), any(), anyLong(), any());
     }
 
     @Test

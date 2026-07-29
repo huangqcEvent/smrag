@@ -89,14 +89,21 @@ public class KnowledgeController {
     public Result<Long> upload(
         @RequestParam("file") MultipartFile file,
         @RequestParam("knowledgeBaseCode") String knowledgeBaseCode,
-        @RequestParam("roles") String roles
+        @RequestParam("roles") String roles,
+        @RequestParam(value = "chunkingStrategy", required = false)
+        String chunkingStrategy
     ) throws Exception {
         List<String> roleCodes = java.util.Arrays.stream(roles.split(","))
             .map(String::trim)
             .filter(role -> !role.isEmpty())
             .toList();
         Long documentId =
-            documentService.uploadDocument(file, knowledgeBaseCode, roleCodes);
+            documentService.uploadDocument(
+                file,
+                knowledgeBaseCode,
+                roleCodes,
+                chunkingStrategy
+            );
 
         // 设置文档权限
         return Result.success(documentId);

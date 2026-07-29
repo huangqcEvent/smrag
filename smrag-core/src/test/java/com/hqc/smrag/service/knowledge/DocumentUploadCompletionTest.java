@@ -49,6 +49,7 @@ class DocumentUploadCompletionTest {
         document.setFileType("PDF");
         document.setKnowledgeBaseId(1L);
         document.setVersion(1);
+        document.setChunkingStrategy("RECURSIVE");
         when(documentMapper.selectById(42L)).thenReturn(document);
         when(documentMapper.selectByIdForUpdate(42L)).thenReturn(document);
         KnowledgeBase knowledgeBase = new KnowledgeBase();
@@ -66,6 +67,8 @@ class DocumentUploadCompletionTest {
         DocumentParseTaskDTO task =
             JSONUtil.toBean(outbox.getValue().getPayload(), DocumentParseTaskDTO.class);
         assertThat(task.getObjectKey()).isEqualTo("rag/document/42/file.pdf");
+        assertThat(outbox.getValue().getPayload())
+            .doesNotContain("chunkingStrategy");
         assertThat(DocumentUploadPersistenceService.class
             .getMethod("completeUpload", Long.class, String.class, String.class, List.class)
             .getAnnotation(Transactional.class)).isNotNull();

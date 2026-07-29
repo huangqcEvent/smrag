@@ -3,6 +3,7 @@ package com.hqc.smrag.service.knowledge;
 import com.hqc.smrag.dto.DocumentParseTaskDTO;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.enums.ChunkingStrategy;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.mapper.DocPermissionMapper;
 import com.hqc.smrag.service.DocPermissionService;
@@ -94,7 +95,8 @@ class DocumentIngestionServiceTest {
         List<Document> chunks = chunks();
         when(reader.read(temporaryFile, "PDF")).thenReturn(sources);
         when(chunker.chunk(
-            sources, 1L, 42L, "enterprise-rag.pdf", "PDF", 2,
+            sources, ChunkingStrategy.TOKEN,
+            1L, 42L, "enterprise-rag.pdf", "PDF", 2,
             DocumentStatus.COMPLETED.name(), "checksum-42", 1,
             java.util.Set.of(1L, 2L))).thenReturn(chunks);
 
@@ -120,6 +122,7 @@ class DocumentIngestionServiceTest {
     @Test
     void addsVectorsOnceAndCompletesRelationalPersistence() {
         KnowledgeDocument document = document(2, DocumentStatus.PENDING);
+        document.setChunkingStrategy("RECURSIVE");
         DocumentParseTaskDTO task = task(2);
         List<Document> sources = List.of(new Document("source text"));
         List<Document> chunks = chunks();
@@ -128,6 +131,7 @@ class DocumentIngestionServiceTest {
         when(reader.read(Path.of(task.getFilePath()), "PDF")).thenReturn(sources);
         when(chunker.chunk(
             sources,
+            ChunkingStrategy.RECURSIVE,
             1L,
             42L,
             "enterprise-rag.pdf",
@@ -166,6 +170,7 @@ class DocumentIngestionServiceTest {
         when(reader.read(Path.of(task.getFilePath()), "PDF")).thenReturn(sources);
         when(chunker.chunk(
             sources,
+            ChunkingStrategy.TOKEN,
             1L,
             42L,
             "enterprise-rag.pdf",
@@ -219,6 +224,41 @@ class DocumentIngestionServiceTest {
         );
     }
 
+    @Test
+    void rejectsUnknownPersistedStrategyAndRecordsFailure() {
+        KnowledgeDocument document = document(2, DocumentStatus.PENDING);
+        document.setChunkingStrategy("UNKNOWN");
+        when(documentMapper.selectById(42L)).thenReturn(document);
+        when(persistenceService.markProcessing(42L, 2, PROCESSING_TOKEN))
+            .thenReturn(true);
+        when(reader.read(Path.of("uploads/enterprise-rag.pdf"), "PDF"))
+            .thenReturn(List.of(new Document("source text")));
+
+        assertThatThrownBy(() -> ingestionService.process(task(2)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("UNKNOWN");
+
+        verify(chunker, never()).chunk(
+            anyList(),
+            any(ChunkingStrategy.class),
+            any(),
+            any(Long.class),
+            any(),
+            any(),
+            any(Integer.class),
+            any(),
+            any(),
+            any(Integer.class),
+            any()
+        );
+        verify(persistenceService).markFailedInNewTransaction(
+            eq(42L),
+            eq(2),
+            eq(PROCESSING_TOKEN),
+            contains("UNKNOWN")
+        );
+    }
+
     private KnowledgeDocument document(int version, DocumentStatus status) {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(42L);
@@ -231,6 +271,7 @@ class DocumentIngestionServiceTest {
         document.setProcessingToken(PROCESSING_TOKEN);
         document.setStatus(status.name());
         document.setAclVersion(1);
+        document.setChunkingStrategy("TOKEN");
         return document;
     }
 

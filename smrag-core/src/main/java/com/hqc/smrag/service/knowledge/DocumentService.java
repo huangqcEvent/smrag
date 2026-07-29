@@ -9,6 +9,7 @@ import com.hqc.smrag.config.MinioStorageProperties;
 import com.hqc.smrag.entity.KnowledgeChunk;
 import com.hqc.smrag.entity.KnowledgeDocument;
 import com.hqc.smrag.enums.DocumentStatus;
+import com.hqc.smrag.enums.ChunkingStrategy;
 import com.hqc.smrag.mapper.KnowledgeChunkMapper;
 import com.hqc.smrag.mapper.KnowledgeDocumentMapper;
 import com.hqc.smrag.service.DocPermissionService;
@@ -152,6 +153,17 @@ public class DocumentService {
         String knowledgeBaseId,
         List<String> roleCodes
     ) throws IOException {
+        return uploadDocument(file, knowledgeBaseId, roleCodes, null);
+    }
+
+    public Long uploadDocument(
+        MultipartFile file,
+        String knowledgeBaseId,
+        List<String> roleCodes,
+        String chunkingStrategyValue
+    ) throws IOException {
+        ChunkingStrategy chunkingStrategy =
+            ChunkingStrategy.fromRequest(chunkingStrategyValue);
         validateFile(file);
         List<String> normalizedRoles = roleCodes == null ? List.of() : roleCodes.stream()
             .filter(java.util.Objects::nonNull)
@@ -183,6 +195,7 @@ public class DocumentService {
         document.setStorageType("MINIO");
         document.setFileType(fileType);
         document.setStatus(DocumentStatus.PENDING.name());
+        document.setChunkingStrategy(chunkingStrategy.name());
         document.setChunkCount(0);
         document.setKnowledgeBaseId(normalizedKnowledgeBaseId);
         document.setAclVersion(0);
