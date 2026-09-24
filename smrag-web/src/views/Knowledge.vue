@@ -407,6 +407,7 @@ import {
   chunkingStrategyLabel
 } from '@/constants/documentChunking'
 import { notifyError } from '@/utils/errorFeedback'
+import { validateUploadFile } from '@/utils/uploadGuard'
 
 const copy = {
   pageTitle: '\u77e5\u8bc6\u5e93',
@@ -734,11 +735,29 @@ const removeSelectedBase = async () => {
   ElMessage.success(copy.baseDeleted)
 }
 
+const rejectUploadFile = outcome => {
+  selectedFile.value = null
+  ElMessage.warning(outcome.message)
+}
+
 const handleFileChange = uploadFile => {
-  selectedFile.value = uploadFile.raw
+  const file = uploadFile?.raw ?? null
+  const outcome = validateUploadFile(file)
+  if (!outcome.ok) {
+    rejectUploadFile(outcome)
+    return
+  }
+  selectedFile.value = file
 }
 
 const handleUpload = async () => {
+  // 选中与点击之间状态可能被改（例如换了文件），发送前再校验一次
+  const outcome = validateUploadFile(selectedFile.value)
+  if (!outcome.ok) {
+    rejectUploadFile(outcome)
+    return
+  }
+
   uploading.value = true
   try {
     await knowledgeStore.upload(
