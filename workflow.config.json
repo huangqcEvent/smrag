@@ -1,0 +1,45 @@
+{
+  "template": "hqc-ai-coding-work-flow",
+  "generatedAt": "2026-09-24",
+  "trunkBranch": "master",
+  "platform": "gitee",
+  "legacyDocs": [
+    "docs/deployment.md",
+    "docs/superpowers/plans/2026-07-16-spring-ai-foundation-ingestion.md",
+    "docs/superpowers/plans/2026-07-17-streaming-chat.md",
+    "docs/superpowers/specs/2026-07-16-spring-ai-rag-upgrade-design.md",
+    "docs/superpowers/specs/2026-07-17-streaming-chat-design.md"
+  ],
+  "aiEntries": [
+    "claude",
+    "cursor",
+    "copilot"
+  ],
+  "stacks": [
+    "java-springboot",
+    "vue3-web",
+    "node-tooling"
+  ],
+  "availableStacks": [
+    "uniapp-vue3",
+    "mysql-schema"
+  ],
+  "stackGaps": [
+    {
+      "id": "postgresql",
+      "name": "PostgreSQL",
+      "slot": "data",
+      "evidence": [
+        "构建文件关键字 postgresql",
+        "SQL 方言特征 bigserial",
+        "SQL 方言特征 create extension",
+        "SQL 方言特征 jsonb"
+      ]
+    }
+  ],
+  "suggestedValidate": {
+    "java-springboot": "mvn test -q",
+    "vue3-web": "npm run validate",
+    "node-tooling": "node scripts/check-docs.mjs"
+  }
+}
