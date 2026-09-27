@@ -12,10 +12,12 @@
 - Kafka
 
 ## 快速开始
-1. 配置环境变量 ALIBABA_API_KEY
-2. 启动 PostgreSQL 和 Kafka
-3. 运行 sql/init.sql 初始化数据库
-4. 启动 SmragApplication
+本地开发（Windows 便携版中间件，无 Docker）按 [docs/16-本地启动.md](docs/16-本地启动.md) 操作：
+
+1. 启动 PostgreSQL（pgvector）、Kafka、MinIO
+2. 建库 `smrag`，Flyway 会在后端启动时自动执行 `db/migration` 下的迁移脚本
+3. 设置环境变量 `DASHSCOPE_API_KEY`
+4. 启动后端（8080）与前端（3000）
 
 ## 功能
 - 知识库管理：文档上传、解析、向量化
