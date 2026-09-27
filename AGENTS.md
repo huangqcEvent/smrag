@@ -30,6 +30,7 @@
 | 任务类型 | 必读 | 按需读 |
 | --- | --- | --- |
 | 任意任务 | 本文件、`docs/01-工作流总览.md` | — |
+| 本地启动 / 环境准备 | `docs/16-本地启动.md` | `docs/07-安全与密钥.md` |
 | 收到 PRD / 原型 | `docs/11-需求接收与拆解.md` | `skills/requirement-intake/SKILL.md`、`spec/` 下同类需求 |
 | 只有口头需求 | `skills/spec-writer/SKILL.md` | `SPEC.md` |
 | 写前端代码 | `docs/14-前端规范-Vue3.md` | `docs/API_CONTRACT.md`、`docs/ADMIN_GUIDELINES.md` |
@@ -99,10 +100,10 @@
 
 | 目的 | 命令 |
 | --- | --- |
-| 启动前端 | `<命令>` |
-| 启动后端 | `<命令>` |
-| 前端校验 | `<命令>`（应包含 lint、类型检查、规范检查） |
-| 后端测试 | `<命令>` |
+| 启动前端 | 在 `smrag-web/` 下执行 `npm run dev`（端口 3000，`/api` 代理到 8080） |
+| 启动后端 | 先起中间件并设置 `DASHSCOPE_API_KEY`，再执行 `java -jar smrag-core/target/smrag-core-1.0.0-SNAPSHOT.jar`，完整步骤见 `docs/16-本地启动.md` |
+| 前端校验 | 在 `smrag-web/` 下执行 `npm run test`、`npm run build` |
+| 后端测试 | `mvn -f pom.xml -pl smrag-core test` |
 | 全部校验（文档 + 技能 + 技术栈） | `npm run validate` |
 | 完整校验 | `npm run validate` |
 | 文档自检 | `node scripts/check-docs.mjs` |
